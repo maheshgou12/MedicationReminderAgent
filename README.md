@@ -1,61 +1,59 @@
-# Medication Reminder Agent
+# 💊 Medication Reminder Agent
 
-## Overview
+A full-stack medication management and reminder system that helps users schedule medicines, receive automated email reminders, track medication adherence, and get AI-powered insights.
 
-A backend Medication Reminder System built using FastAPI, PostgreSQL, and SQLAlchemy.
+## ✨ Features
 
-## Features
+- 🔐 JWT-based authentication
+- 💊 Add, edit, and delete medications
+- ⏰ Automated medication reminders
+- 📧 Email notifications using SMTP
+- ✅ Mark medication as taken
+- ❌ Track missed medications
+- 📊 Medication adherence analytics
+- 🤖 AI-powered medication insights
+- 🔄 Activate / deactivate medications
+- 🗄️ PostgreSQL database
+- ⚡ Background scheduling with APScheduler
+- 🖥️ Modern React dashboard
 
-* User Registration
-* User Login
-* Add Medication
-* Update Medication
-* Delete Medication
-* Medication Tracking
-* Analytics API
-* PostgreSQL Database
-* REST APIs
+## 🛠️ Tech Stack
 
-## Tech Stack
+### Frontend
+- React
+- Vite
+- React Router
+- CSS
 
-* Python
-* FastAPI
-* PostgreSQL
-* SQLAlchemy
-* Uvicorn
-* pgAdmin
+### Backend
+- Python
+- FastAPI
+- SQLAlchemy
+- APScheduler
+- JWT
+- Passlib / bcrypt
 
-## API Endpoints
+### Database
+- PostgreSQL
 
-### User APIs
+### Notifications
+- SMTP / Gmail
 
-* POST /register
-* POST /login
+## 🏗️ Architecture
 
-### Medication APIs
+```text
+React Frontend
+      │
+      ▼
+FastAPI Backend
+      │
+ ┌────┴─────┐
+ ▼          ▼
+PostgreSQL  APScheduler
+               │
+               ▼
+          Email Reminder
 
-* POST /add-medication
-* GET /medications
-* PUT /medications/{id}
-* DELETE /medications/{id}
 
-### Tracking APIs
 
-* POST /mark-taken/{id}
-* GET /stats
 
-## Database Tables
-
-* users
-* medications
-* medication_logs
-
-## Run Project
-
-pip install -r requirements.txt
-
-python -m uvicorn main:app --reload
-
-## Author
-
-Mahesh Burra
