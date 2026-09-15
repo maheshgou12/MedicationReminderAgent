@@ -1,5 +1,3 @@
-
-
 import React, { useState } from "react";
 
 function Medications({
@@ -11,11 +9,8 @@ function Medications({
   onMarkTaken,
   onMarkMissed,
 }) {
-  const [showModal, setShowModal] =
-    useState(false);
-
-  const [editingMedication, setEditingMedication] =
-    useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [editingMedication, setEditingMedication] = useState(null);
 
   const [form, setForm] = useState({
     medicine_name: "",
@@ -29,7 +24,6 @@ function Medications({
   ======================================================= */
 
   const openAddModal = () => {
-
     setEditingMedication(null);
 
     setForm({
@@ -47,23 +41,13 @@ function Medications({
   ======================================================= */
 
   const openEditModal = (medication) => {
-
-    setEditingMedication(
-      medication
-    );
+    setEditingMedication(medication);
 
     setForm({
-      medicine_name:
-        medication.medicine_name || "",
-
-      dosage:
-        medication.dosage || "",
-
-      reminder_time:
-        medication.reminder_time || "",
-
-      frequency:
-        medication.frequency || "Daily",
+      medicine_name: medication.medicine_name || "",
+      dosage: medication.dosage || "",
+      reminder_time: medication.reminder_time || "",
+      frequency: medication.frequency || "Daily",
     });
 
     setShowModal(true);
@@ -74,9 +58,7 @@ function Medications({
   ======================================================= */
 
   const closeModal = () => {
-
     setShowModal(false);
-
     setEditingMedication(null);
 
     setForm({
@@ -92,11 +74,7 @@ function Medications({
   ======================================================= */
 
   const handleChange = (e) => {
-
-    const {
-      name,
-      value,
-    } = e.target;
+    const { name, value } = e.target;
 
     setForm((previous) => ({
       ...previous,
@@ -109,65 +87,102 @@ function Medications({
   ======================================================= */
 
   const handleSubmit = async (e) => {
-
     e.preventDefault();
 
+    /* STEP 1 DEBUG */
+    console.log(
+      "DEBUG onAddMedication:",
+      typeof onAddMedication,
+      onAddMedication
+    );
+
     if (!form.medicine_name.trim()) {
+      alert("Please enter medicine name");
       return;
     }
 
     if (!form.dosage.trim()) {
+      alert("Please enter dosage");
       return;
     }
 
     if (!form.reminder_time) {
+      alert("Please select reminder time");
       return;
     }
 
+    /* ===================================================
+       EDIT MEDICATION
+    =================================================== */
+
     if (editingMedication) {
-
-      const success =
-        await onUpdateMedication(
-          editingMedication.id,
-          {
-            medicine_name:
-              form.medicine_name.trim(),
-
-            dosage:
-              form.dosage.trim(),
-
-            reminder_time:
-              form.reminder_time,
-
-            frequency:
-              form.frequency,
-          }
+      if (typeof onUpdateMedication !== "function") {
+        console.error(
+          "onUpdateMedication is not a function:",
+          onUpdateMedication
         );
 
+        alert("Update function is not available");
+        return;
+      }
+
+      const success = await onUpdateMedication(
+        editingMedication.id,
+        {
+          medicine_name: form.medicine_name.trim(),
+          dosage: form.dosage.trim(),
+          reminder_time: form.reminder_time,
+          frequency: form.frequency,
+        }
+      );
+
       if (success) {
         closeModal();
       }
 
-    } else {
+      return;
+    }
 
-      const success =
-        await onAddMedication({
-          medicine_name:
-            form.medicine_name.trim(),
+    /* ===================================================
+       ADD MEDICATION
+    =================================================== */
 
-          dosage:
-            form.dosage.trim(),
+    if (typeof onAddMedication !== "function") {
+      console.error(
+        "ERROR: onAddMedication is not a function:",
+        onAddMedication
+      );
 
-          reminder_time:
-            form.reminder_time,
+      alert(
+        "Add medication function is not connected. Check App.jsx."
+      );
 
-          frequency:
-            form.frequency,
-        });
+      return;
+    }
 
-      if (success) {
-        closeModal();
-      }
+    const medicationData = {
+      medicine_name: form.medicine_name.trim(),
+      dosage: form.dosage.trim(),
+      reminder_time: form.reminder_time,
+      frequency: form.frequency,
+    };
+
+    console.log(
+      "Sending medication:",
+      medicationData
+    );
+
+    const success = await onAddMedication(
+      medicationData
+    );
+
+    console.log(
+      "Add medication result:",
+      success
+    );
+
+    if (success) {
+      closeModal();
     }
   };
 
@@ -175,49 +190,44 @@ function Medications({
      DELETE
   ======================================================= */
 
-  const handleDelete = async (
-    medication
-  ) => {
-
-    const confirmed =
-      window.confirm(
-        `Delete ${medication.medicine_name}?`
-      );
+  const handleDelete = async (medication) => {
+    const confirmed = window.confirm(
+      `Delete ${medication.medicine_name}?`
+    );
 
     if (!confirmed) {
       return;
     }
 
-    await onDeleteMedication(
-      medication.id
-    );
+    if (typeof onDeleteMedication !== "function") {
+      console.error(
+        "onDeleteMedication is not a function"
+      );
+      return;
+    }
+
+    await onDeleteMedication(medication.id);
   };
 
   /* =======================================================
      COUNTS
   ======================================================= */
 
-  const total =
-    medications.length;
+  const total = medications.length;
 
-  const active =
-    medications.filter(
-      (medication) =>
-        medication.active
-    ).length;
+  const active = medications.filter(
+    (medication) => medication.active
+  ).length;
 
-  const inactive =
-    medications.filter(
-      (medication) =>
-        !medication.active
-    ).length;
+  const inactive = medications.filter(
+    (medication) => !medication.active
+  ).length;
 
-  const scheduled =
-    medications.filter(
-      (medication) =>
-        medication.active &&
-        medication.reminder_time
-    ).length;
+  const scheduled = medications.filter(
+    (medication) =>
+      medication.active &&
+      medication.reminder_time
+  ).length;
 
   /* =======================================================
      PAGE
@@ -226,22 +236,16 @@ function Medications({
   return (
     <div className="medications-page">
 
-      {/* ===================================================
-          HEADER
-      =================================================== */}
+      {/* HEADER */}
 
       <div className="page-header">
 
         <div>
-
-          <h1>
-            💊 Medications
-          </h1>
+          <h1>💊 Medications</h1>
 
           <p>
             Manage your medications and reminder schedules.
           </p>
-
         </div>
 
         <button
@@ -254,14 +258,11 @@ function Medications({
 
       </div>
 
-      {/* ===================================================
-          SUMMARY
-      =================================================== */}
+      {/* SUMMARY */}
 
       <div className="medication-summary">
 
         <div className="summary-card">
-
           <div className="summary-label">
             Total Medications
           </div>
@@ -269,11 +270,9 @@ function Medications({
           <div className="summary-value">
             {total}
           </div>
-
         </div>
 
         <div className="summary-card">
-
           <div className="summary-label">
             Active
           </div>
@@ -281,11 +280,9 @@ function Medications({
           <div className="summary-value">
             {active}
           </div>
-
         </div>
 
         <div className="summary-card">
-
           <div className="summary-label">
             Inactive
           </div>
@@ -293,11 +290,9 @@ function Medications({
           <div className="summary-value">
             {inactive}
           </div>
-
         </div>
 
         <div className="summary-card">
-
           <div className="summary-label">
             Scheduled
           </div>
@@ -305,261 +300,200 @@ function Medications({
           <div className="summary-value">
             {scheduled}
           </div>
-
         </div>
 
       </div>
 
-      {/* ===================================================
-          MEDICATION LIST
-      =================================================== */}
+      {/* MEDICATION TABLE */}
 
-      {medications.length === 0 ? (
+      <div className="medications-card">
 
-        <div className="empty-state">
+        <div className="card-header">
 
-          <div className="empty-icon">
-            💊
+          <div>
+            <h2>Your Medications</h2>
+
+            <p>
+              Track medicines and reminder schedules.
+            </p>
           </div>
 
-          <h3>
-            No medications yet
-          </h3>
-
-          <p>
-            Add your first medication to start tracking reminders.
-          </p>
-
           <button
-            className="primary-button"
+            className="secondary-button"
             onClick={openAddModal}
           >
-            ＋ Add Medication
+            + Add
           </button>
 
         </div>
 
-      ) : (
+        {medications.length === 0 ? (
 
-        <div className="table-container">
+          <div className="empty-state">
 
-          <table className="medication-table">
+            <div className="empty-icon">
+              💊
+            </div>
 
-            <thead>
+            <h3>
+              No medications yet
+            </h3>
 
-              <tr>
+            <p>
+              Add your first medication to start
+              receiving reminders.
+            </p>
 
-                <th>
-                  MEDICINE
-                </th>
+            <button
+              className="primary-button"
+              onClick={openAddModal}
+            >
+              + Add Medication
+            </button>
 
-                <th>
-                  DOSAGE
-                </th>
+          </div>
 
-                <th>
-                  REMINDER
-                </th>
+        ) : (
 
-                <th>
-                  FREQUENCY
-                </th>
+          <div className="table-wrapper">
 
-                <th>
-                  STATUS
-                </th>
+            <table className="medications-table">
 
-                <th>
-                  ACTIONS
-                </th>
+              <thead>
 
-              </tr>
+                <tr>
+                  <th>Medicine</th>
+                  <th>Dosage</th>
+                  <th>Reminder</th>
+                  <th>Frequency</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
 
-            </thead>
+              </thead>
 
-            <tbody>
+              <tbody>
 
-              {medications.map(
-                (medication) => (
+                {medications.map(
+                  (medication) => (
 
-                  <tr
-                    key={
-                      medication.id
-                    }
-                  >
+                    <tr key={medication.id}>
 
-                    {/* MEDICINE */}
+                      <td>
+                        <strong>
+                          {medication.medicine_name}
+                        </strong>
+                      </td>
 
-                    <td>
+                      <td>
+                        {medication.dosage}
+                      </td>
 
-                      <div className="medicine-cell">
-
-                        <div className="medicine-icon">
-                          💊
-                        </div>
-
-                        <div>
-
-                          <div className="medicine-name">
-                            {
-                              medication.medicine_name
-                            }
-                          </div>
-
-                          <div className="medicine-id">
-                            ID #{medication.id}
-                          </div>
-
-                        </div>
-
-                      </div>
-
-                    </td>
-
-                    {/* DOSAGE */}
-
-                    <td>
-                      {
-                        medication.dosage
-                      }
-                    </td>
-
-                    {/* REMINDER */}
-
-                    <td>
-
-                      <span className="reminder-time">
+                      <td>
                         ⏰{" "}
-                        {
-                          medication.reminder_time
-                        }
-                      </span>
+                        {medication.reminder_time}
+                      </td>
 
-                    </td>
+                      <td>
+                        {medication.frequency}
+                      </td>
 
-                    {/* FREQUENCY */}
+                      <td>
 
-                    <td>
-                      {
-                        medication.frequency
-                      }
-                    </td>
-
-                    {/* STATUS */}
-
-                    <td>
-
-                      <span
-                        className={`status-badge ${
-                          medication.active
-                            ? "active"
-                            : "inactive"
-                        }`}
-                      >
-
-                        <span className="status-dot"></span>
-
-                        {medication.active
-                          ? "ACTIVE"
-                          : "INACTIVE"}
-
-                      </span>
-
-                    </td>
-
-                    {/* ACTIONS */}
-
-                    <td>
-
-                      <div className="action-buttons">
-
-                        {/* EDIT */}
-
-                        <button
-                          className="action-button edit"
-                          onClick={() =>
-                            openEditModal(
-                              medication
-                            )
-                          }
-                        >
-                          Edit
-                        </button>
-
-                        {/* ACTIVATE / DEACTIVATE */}
-
-                        <button
-                          className={`action-button ${
+                        <span
+                          className={
                             medication.active
-                              ? "deactivate"
-                              : "activate"
-                          }`}
-                          onClick={() =>
-                            onToggleStatus(
-                              medication
-                            )
+                              ? "status-badge active"
+                              : "status-badge inactive"
                           }
                         >
                           {medication.active
-                            ? "Disable"
-                            : "Activate"}
-                        </button>
+                            ? "Active"
+                            : "Inactive"}
+                        </span>
 
-                        {/* TAKEN */}
+                      </td>
 
-                        <button
-                          className="action-button taken"
-                          onClick={() =>
-                            onMarkTaken(
-                              medication.id
-                            )
-                          }
-                        >
-                          Taken
-                        </button>
+                      <td>
 
-                        {/* MISSED */}
+                        <div className="action-buttons">
 
-                        <button
-                          className="action-button missed"
-                          onClick={() =>
-                            onMarkMissed(
-                              medication.id
-                            )
-                          }
-                        >
-                          Missed
-                        </button>
+                          <button
+                            className="action-button"
+                            onClick={() =>
+                              openEditModal(
+                                medication
+                              )
+                            }
+                          >
+                            Edit
+                          </button>
 
-                        {/* DELETE */}
+                          <button
+                            className="action-button"
+                            onClick={() =>
+                              onToggleStatus(
+                                medication.id,
+                                !medication.active
+                              )
+                            }
+                          >
+                            {medication.active
+                              ? "Disable"
+                              : "Activate"}
+                          </button>
 
-                        <button
-                          className="action-button delete"
-                          onClick={() =>
-                            handleDelete(
-                              medication
-                            )
-                          }
-                        >
-                          Delete
-                        </button>
+                          <button
+                            className="action-button"
+                            onClick={() =>
+                              onMarkTaken(
+                                medication.id
+                              )
+                            }
+                          >
+                            Taken
+                          </button>
 
-                      </div>
+                          <button
+                            className="action-button"
+                            onClick={() =>
+                              onMarkMissed(
+                                medication.id
+                              )
+                            }
+                          >
+                            Missed
+                          </button>
 
-                    </td>
+                          <button
+                            className="action-button danger"
+                            onClick={() =>
+                              handleDelete(
+                                medication
+                              )
+                            }
+                          >
+                            Delete
+                          </button>
 
-                  </tr>
+                        </div>
 
-                )
-              )}
+                      </td>
 
-            </tbody>
+                    </tr>
 
-          </table>
+                  )
+                )}
 
-        </div>
+              </tbody>
 
-      )}
+            </table>
+
+          </div>
+
+        )}
+
+      </div>
 
       {/* ===================================================
           ADD / EDIT MODAL
@@ -567,33 +501,32 @@ function Medications({
 
       {showModal && (
 
-        <div
-          className="modal-overlay"
-          onClick={(e) => {
-
-            if (
-              e.target ===
-              e.currentTarget
-            ) {
-              closeModal();
-            }
-
-          }}
-        >
+        <div className="modal-overlay">
 
           <div className="modal">
 
             <div className="modal-header">
 
-              <h2>
-                {editingMedication
-                  ? "Edit Medication"
-                  : "Add Medication"}
-              </h2>
+              <div>
+
+                <h2>
+                  {editingMedication
+                    ? "Edit Medication"
+                    : "Add Medication"}
+                </h2>
+
+                <p>
+                  {editingMedication
+                    ? "Update medication details."
+                    : "Add a medicine and reminder schedule."}
+                </p>
+
+              </div>
 
               <button
                 className="modal-close"
                 onClick={closeModal}
+                type="button"
               >
                 ×
               </button>
@@ -601,86 +534,78 @@ function Medications({
             </div>
 
             <form
-              className="modal-form"
               onSubmit={handleSubmit}
+              className="medication-form"
             >
 
-              {/* MEDICINE */}
+              {/* MEDICINE NAME */}
 
-              <label>
+              <div className="form-group">
 
-                Medicine Name
+                <label>
+                  Medicine Name
+                </label>
 
                 <input
                   type="text"
                   name="medicine_name"
-                  value={
-                    form.medicine_name
-                  }
-                  onChange={
-                    handleChange
-                  }
-                  placeholder="Enter medicine name"
+                  value={form.medicine_name}
+                  onChange={handleChange}
+                  placeholder="e.g. Paracetamol"
                   required
                 />
 
-              </label>
+              </div>
 
               {/* DOSAGE */}
 
-              <label>
+              <div className="form-group">
 
-                Dosage
+                <label>
+                  Dosage
+                </label>
 
                 <input
                   type="text"
                   name="dosage"
-                  value={
-                    form.dosage
-                  }
-                  onChange={
-                    handleChange
-                  }
+                  value={form.dosage}
+                  onChange={handleChange}
                   placeholder="e.g. 500 mg"
                   required
                 />
 
-              </label>
+              </div>
 
-              {/* REMINDER */}
+              {/* REMINDER TIME */}
 
-              <label>
+              <div className="form-group">
 
-                Reminder Time
+                <label>
+                  Reminder Time
+                </label>
 
                 <input
                   type="time"
                   name="reminder_time"
-                  value={
-                    form.reminder_time
-                  }
-                  onChange={
-                    handleChange
-                  }
+                  value={form.reminder_time}
+                  onChange={handleChange}
                   required
                 />
 
-              </label>
+              </div>
 
               {/* FREQUENCY */}
 
-              <label>
+              <div className="form-group">
 
-                Frequency
+                <label>
+                  Frequency
+                </label>
 
                 <select
                   name="frequency"
-                  value={
-                    form.frequency
-                  }
-                  onChange={
-                    handleChange
-                  }
+                  value={form.frequency}
+                  onChange={handleChange}
                 >
 
                   <option value="Daily">
@@ -701,7 +626,7 @@ function Medications({
 
                 </select>
 
-              </label>
+              </div>
 
               {/* BUTTONS */}
 
@@ -720,7 +645,7 @@ function Medications({
                   className="primary-button"
                 >
                   {editingMedication
-                    ? "Save Changes"
+                    ? "Update Medication"
                     : "Add Medication"}
                 </button>
 
@@ -739,5 +664,6 @@ function Medications({
 }
 
 export default Medications;
+
 
 

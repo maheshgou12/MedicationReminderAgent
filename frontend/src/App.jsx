@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
+
 import {
   BrowserRouter,
   Routes,
   Route,
+  NavLink,
   Navigate,
-  Link,
-  useLocation,
   useNavigate,
 } from "react-router-dom";
 
@@ -17,183 +17,54 @@ import AIInsights from "./pages/AIInsights";
 
 import "./App.css";
 
+/* =========================================================
+   API CONFIGURATION
+========================================================= */
+
 const API_URL =
-  import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+  import.meta.env.VITE_API_URL ||
+  "http://127.0.0.1:8000";
 
-function getToken() {
-  return localStorage.getItem("token");
-}
+console.log("API URL:", API_URL);
 
-function getUserId() {
-  const token = getToken();
+/* =========================================================
+   AUTH HELPERS
+========================================================= */
 
-  if (!token) {
-    return null;
-  }
+const getToken = () => {
+  return localStorage.getItem("access_token");
+};
 
+const getUserIdFromToken = (token) => {
   try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
+    const parts = token.split(".");
+
+    if (parts.length !== 3) {
+      return null;
+    }
+
+    const payload = JSON.parse(atob(parts[1]));
+
     return Number(payload.sub);
   } catch (error) {
-    console.error("Unable to decode token:", error);
+    console.error("Token decode error:", error);
     return null;
   }
-}
+};
 
-function Sidebar({ onLogout }) {
-  const location = useLocation();
+/* =========================================================
+   LOGIN PAGE
+========================================================= */
 
-  const links = [
-    {
-      path: "/dashboard",
-      label: "Dashboard",
-      icon: "📊",
-    },
-    {
-      path: "/medications",
-      label: "Medications",
-      icon: "💊",
-    },
-    {
-      path: "/reminders",
-      label: "Reminders",
-      icon: "⏰",
-    },
-    {
-      path: "/analytics",
-      label: "Analytics",
-      icon: "📈",
-    },
-    {
-      path: "/ai",
-      label: "AI Insights",
-      icon: "🤖",
-    },
-  ];
-
-  return (
-    <aside className="sidebar">
-      <div className="sidebar-brand">
-        <div className="brand-icon">💊</div>
-
-        <div>
-          <h2>MedAgent</h2>
-          <span>Medication Assistant</span>
-        </div>
-      </div>
-
-      <nav className="sidebar-nav">
-        {links.map((link) => {
-          const active =
-            location.pathname === link.path ||
-            (link.path === "/dashboard" &&
-              location.pathname === "/");
-
-          return (
-            <Link
-              key={link.path}
-              to={link.path}
-              className={`nav-link ${
-                active ? "nav-link-active" : ""
-              }`}
-            >
-              <span className="nav-icon">{link.icon}</span>
-              <span>{link.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
-
-      <div className="sidebar-bottom">
-        <div className="sidebar-info">
-          <div className="info-icon">🛡️</div>
-
-          <div>
-            <strong>Secure</strong>
-            <span>JWT protected</span>
-          </div>
-        </div>
-
-        <button
-          className="logout-button"
-          onClick={onLogout}
-        >
-          <span>↪</span>
-          Logout
-        </button>
-      </div>
-    </aside>
-  );
-}
-
-function TopBar({ username }) {
-  const location = useLocation();
-
-  const titles = {
-    "/": "Dashboard",
-    "/dashboard": "Dashboard",
-    "/medications": "Medications",
-    "/reminders": "Reminders",
-    "/analytics": "Analytics",
-    "/ai": "AI Insights",
-  };
-
-  const title = titles[location.pathname] || "Dashboard";
-
-  return (
-    <header className="topbar">
-      <div>
-        <h1>{title}</h1>
-        <p>
-          Welcome back{username ? `, ${username}` : ""}
-        </p>
-      </div>
-
-      <div className="topbar-user">
-        <div className="user-avatar">
-          {username
-            ? username.charAt(0).toUpperCase()
-            : "U"}
-        </div>
-
-        <div>
-          <strong>{username || "User"}</strong>
-          <span>Patient Account</span>
-        </div>
-      </div>
-    </header>
-  );
-}
-
-function MessageBanner({ message, type = "success", onClose }) {
-  if (!message) {
-    return null;
-  }
-
-  return (
-    <div className={`message-banner ${type}`}>
-      <span>
-        {type === "error" ? "⚠️" : "✓"}
-      </span>
-
-      <p>{message}</p>
-
-      <button onClick={onClose}>×</button>
-    </div>
-  );
-}
-
-function Login({ onLogin }) {
-  const navigate = useNavigate();
-
+function LoginPage({ onLogin }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  async function handleSubmit(event) {
-    event.preventDefault();
+  const handleLogin = async (e) => {
+    e.preventDefault();
 
     setError("");
     setLoading(true);
@@ -208,11 +79,13 @@ function Login({ onLogin }) {
         `${API_URL}/login`,
         {
           method: "POST",
+
           headers: {
             "Content-Type":
               "application/x-www-form-urlencoded",
           },
-          body: formData,
+
+          body: formData.toString(),
         }
       );
 
@@ -220,721 +93,1498 @@ function Login({ onLogin }) {
 
       if (!response.ok) {
         throw new Error(
-          data.detail || "Login failed"
+          data.detail ||
+          "Invalid email or password"
         );
       }
 
       localStorage.setItem(
-        "token",
+        "access_token",
         data.access_token
       );
 
-      localStorage.setItem(
-        "username",
-        data.user?.username || "User"
-      );
+      if (data.user) {
+        localStorage.setItem(
+          "user",
+          JSON.stringify(data.user)
+        );
+      }
 
-      onLogin();
+      onLogin(data);
 
-      navigate("/dashboard");
-    } catch (err) {
+    } catch (error) {
+      console.error("Login error:", error);
+
       setError(
-        err.message ||
-          "Unable to connect to the server"
+        error.message ||
+        "Login failed"
       );
+
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   return (
     <div className="login-page">
-      <div className="login-left">
-        <div className="login-brand">
-          <div className="brand-icon">💊</div>
 
-          <div>
-            <h2>MedAgent</h2>
-            <span>Medication Assistant</span>
-          </div>
+      <div className="login-card">
+
+        <div className="login-logo">
+          💊
         </div>
 
-        <div className="login-content">
-          <div className="login-icon">💊</div>
+        <h1>
+          Medication Reminder
+        </h1>
 
-          <h1>
-            Your medication,
-            <br />
-            <span>smarter.</span>
-          </h1>
+        <p className="login-subtitle">
+          Smart medication management system
+        </p>
 
-          <p>
-            Track your medicines, receive timely
-            reminders, monitor adherence, and get
-            intelligent AI-powered insights.
-          </p>
-
-          <div className="login-features">
-            <div>
-              <span>⏰</span>
-              <p>Smart reminders</p>
-            </div>
-
-            <div>
-              <span>📈</span>
-              <p>Adherence analytics</p>
-            </div>
-
-            <div>
-              <span>🤖</span>
-              <p>AI insights</p>
-            </div>
+        {error && (
+          <div className="login-error">
+            {error}
           </div>
-        </div>
+        )}
+
+        <form onSubmit={handleLogin}>
+
+          <div className="form-group">
+
+            <label>
+              Email
+            </label>
+
+            <input
+              type="email"
+              placeholder="Enter your email"
+              value={email}
+              onChange={(e) =>
+                setEmail(e.target.value)
+              }
+              required
+            />
+
+          </div>
+
+          <div className="form-group">
+
+            <label>
+              Password
+            </label>
+
+            <input
+              type="password"
+              placeholder="Enter your password"
+              value={password}
+              onChange={(e) =>
+                setPassword(e.target.value)
+              }
+              required
+            />
+
+          </div>
+
+          <button
+            type="submit"
+            className="login-button"
+            disabled={loading}
+          >
+            {loading
+              ? "Logging in..."
+              : "Login"}
+          </button>
+
+        </form>
+
       </div>
 
-      <div className="login-right">
-        <div className="login-card">
-          <div className="login-card-header">
-            <h1>Welcome back</h1>
-            <p>
-              Sign in to manage your medications.
-            </p>
-          </div>
-
-          {error && (
-            <div className="login-error">
-              ⚠️ {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit}>
-            <div className="form-group">
-              <label>Email</label>
-
-              <input
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(event) =>
-                  setEmail(event.target.value)
-                }
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Password</label>
-
-              <input
-                type="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(event) =>
-                  setPassword(event.target.value)
-                }
-                required
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="login-button"
-              disabled={loading}
-            >
-              {loading
-                ? "Signing in..."
-                : "Sign in"}
-            </button>
-          </form>
-
-          <div className="login-footer">
-            <span>Medication Reminder Agent</span>
-            <span>•</span>
-            <span>Secure JWT Authentication</span>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
 
-function AppLayout({ onLogout, username, children }) {
+/* =========================================================
+   SIDEBAR
+========================================================= */
+
+function Sidebar({ onLogout }) {
   return (
-    <div className="app-shell">
-      <Sidebar onLogout={onLogout} />
+    <aside className="sidebar">
 
-      <main className="main-content">
-        <TopBar username={username} />
+      <div className="sidebar-brand">
 
-        <div className="page-content">
-          {children}
+        <div className="brand-icon">
+          💊
         </div>
-      </main>
+
+        <div>
+
+          <h2>
+            MedAssist
+          </h2>
+
+          <span>
+            Medication Agent
+          </span>
+
+        </div>
+
+      </div>
+
+      <nav className="sidebar-nav">
+
+        <NavLink
+          to="/dashboard"
+          className={({ isActive }) =>
+            `nav-item ${
+              isActive ? "active" : ""
+            }`
+          }
+        >
+          <span>📊</span>
+          Dashboard
+        </NavLink>
+
+        <NavLink
+          to="/medications"
+          className={({ isActive }) =>
+            `nav-item ${
+              isActive ? "active" : ""
+            }`
+          }
+        >
+          <span>💊</span>
+          Medications
+        </NavLink>
+
+        <NavLink
+          to="/reminders"
+          className={({ isActive }) =>
+            `nav-item ${
+              isActive ? "active" : ""
+            }`
+          }
+        >
+          <span>⏰</span>
+          Reminders
+        </NavLink>
+
+        <NavLink
+          to="/analytics"
+          className={({ isActive }) =>
+            `nav-item ${
+              isActive ? "active" : ""
+            }`
+          }
+        >
+          <span>📈</span>
+          Analytics
+        </NavLink>
+
+        <NavLink
+          to="/ai"
+          className={({ isActive }) =>
+            `nav-item ${
+              isActive ? "active" : ""
+            }`
+          }
+        >
+          <span>🤖</span>
+          AI Insights
+        </NavLink>
+
+      </nav>
+
+      <div className="sidebar-bottom">
+
+        <button
+          className="logout-button"
+          onClick={onLogout}
+        >
+          <span>🚪</span>
+          Logout
+        </button>
+
+      </div>
+
+    </aside>
+  );
+}
+
+/* =========================================================
+   TOP BAR
+========================================================= */
+
+function TopBar() {
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+
+    try {
+
+      const storedUser =
+        localStorage.getItem("user");
+
+      if (storedUser) {
+
+        setUser(
+          JSON.parse(storedUser)
+        );
+
+      }
+
+    } catch (error) {
+
+      console.error(
+        "User load error:",
+        error
+      );
+
+    }
+
+  }, []);
+
+  return (
+    <header className="topbar">
+
+      <div className="topbar-title">
+        Smart medication management system
+      </div>
+
+      <div className="topbar-user">
+
+        <span className="notification-icon">
+          🔔
+        </span>
+
+        <div className="user-avatar">
+
+          {user?.username
+            ? user.username
+                .charAt(0)
+                .toUpperCase()
+            : "U"}
+
+        </div>
+
+        <div className="user-info">
+
+          <strong>
+            {user?.username || "User"}
+          </strong>
+
+          <span>
+            Patient
+          </span>
+
+        </div>
+
+      </div>
+
+    </header>
+  );
+}
+
+/* =========================================================
+   MESSAGE BANNER
+========================================================= */
+
+function MessageBanner({
+  message,
+  type = "success",
+  onClose,
+}) {
+
+  if (!message) {
+    return null;
+  }
+
+  return (
+    <div
+      className={`message-banner ${type}`}
+    >
+
+      <span>
+        {type === "error"
+          ? "❌"
+          : "✅"}
+      </span>
+
+      <span>
+        {message}
+      </span>
+
+      <button
+        onClick={onClose}
+      >
+        ×
+      </button>
+
     </div>
   );
 }
 
-function App() {
-  const [isAuthenticated, setIsAuthenticated] =
-    useState(Boolean(getToken()));
+/* =========================================================
+   MAIN APPLICATION
+========================================================= */
 
-  const [username, setUsername] = useState(
-    localStorage.getItem("username") || "User"
-  );
+function MainApp() {
 
-  const [medications, setMedications] = useState([]);
-  const [reminders, setReminders] = useState([]);
-  const [adherenceData, setAdherenceData] =
-    useState({});
+  const navigate = useNavigate();
 
-  const [message, setMessage] = useState("");
+  const [medications, setMedications] =
+    useState([]);
+
+  const [reminders, setReminders] =
+    useState([]);
+
+  const [adherence, setAdherence] =
+    useState(null);
+
+  const [aiRecommendations, setAiRecommendations] =
+    useState([]);
+
+  const [loading, setLoading] =
+    useState(false);
+
+  const [message, setMessage] =
+    useState("");
+
   const [messageType, setMessageType] =
     useState("success");
 
-  function showMessage(
+  /* =======================================================
+     MESSAGE
+  ======================================================= */
+
+  const showMessage = (
     text,
     type = "success"
-  ) {
+  ) => {
+
     setMessage(text);
     setMessageType(type);
 
     setTimeout(() => {
       setMessage("");
-    }, 3500);
-  }
+    }, 4000);
+  };
 
-  function logout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("username");
+  /* =======================================================
+     LOGOUT
+  ======================================================= */
 
-    setIsAuthenticated(false);
-    setMedications([]);
-    setReminders([]);
-    setAdherenceData({});
-  }
+  const handleLogout = () => {
 
-  async function apiFetch(
-    endpoint,
-    options = {}
-  ) {
-    const token = getToken();
-
-    const headers = {
-      ...(options.headers || {}),
-    };
-
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
-
-    const response = await fetch(
-      `${API_URL}${endpoint}`,
-      {
-        ...options,
-        headers,
-      }
+    localStorage.removeItem(
+      "access_token"
     );
 
-    if (response.status === 401) {
-      logout();
+    localStorage.removeItem(
+      "user"
+    );
 
-      throw new Error(
-        "Session expired. Please login again."
-      );
-    }
+    setMedications([]);
+    setReminders([]);
+    setAdherence(null);
+    setAiRecommendations([]);
 
-    const contentType =
-      response.headers.get("content-type") || "";
+    navigate("/login");
+  };
 
-    let data = null;
+  /* =======================================================
+     FETCH MEDICATIONS
+  ======================================================= */
 
-    if (
-      contentType.includes("application/json")
-    ) {
-      data = await response.json();
-    } else {
-      data = await response.text();
-    }
+  const fetchMedications = async () => {
 
-    if (!response.ok) {
-      throw new Error(
-        data?.detail ||
-          data ||
-          "Request failed"
-      );
-    }
+    const token = getToken();
 
-    return data;
-  }
-
-  async function fetchMedications() {
-    try {
-      const data = await apiFetch(
-        "/medications"
-      );
-
-      setMedications(
-        Array.isArray(data) ? data : []
-      );
-    } catch (error) {
-      console.error(
-        "Fetch medications error:",
-        error
-      );
-    }
-  }
-
-  async function fetchReminders() {
-    try {
-      const data = await apiFetch(
-        "/reminders"
-      );
-
-      setReminders(
-        Array.isArray(data) ? data : []
-      );
-    } catch (error) {
-      console.error(
-        "Fetch reminders error:",
-        error
-      );
-    }
-  }
-
-  async function fetchAdherence() {
-    if (!medications.length) {
-      setAdherenceData({});
+    if (!token) {
       return;
     }
 
-    const results = {};
-
-    for (const medication of medications) {
-      try {
-        const data = await apiFetch(
-          `/ai/medications/${medication.id}/adherence`
-        );
-
-        results[medication.id] = data;
-      } catch (error) {
-        console.error(
-          `Adherence error for medication ${medication.id}:`,
-          error
-        );
-      }
-    }
-
-    setAdherenceData(results);
-  }
-
-  async function addMedication(
-    medication
-  ) {
     try {
-      const data = await apiFetch(
-        `/users/${getUserId()}/medications`,
+
+      setLoading(true);
+
+      const response = await fetch(
+        `${API_URL}/medications`,
         {
-          method: "POST",
           headers: {
-            "Content-Type":
-              "application/json",
+            Authorization:
+              `Bearer ${token}`,
           },
-          body: JSON.stringify(medication),
         }
       );
 
-      setMedications((previous) => [
-        ...previous,
-        data,
+      if (response.status === 401) {
+
+        handleLogout();
+        return;
+
+      }
+
+      if (!response.ok) {
+
+        const data =
+          await response.json()
+            .catch(() => ({}));
+
+        throw new Error(
+          data.detail ||
+          "Failed to fetch medications"
+        );
+
+      }
+
+      const data =
+        await response.json();
+
+      setMedications(
+        Array.isArray(data)
+          ? data
+          : []
+      );
+
+    } catch (error) {
+
+      console.error(
+        "Medication fetch error:",
+        error
+      );
+
+      showMessage(
+        error.message ||
+        "Unable to load medications",
+        "error"
+      );
+
+    } finally {
+
+      setLoading(false);
+
+    }
+  };
+
+  /* =======================================================
+     FETCH REMINDERS
+  ======================================================= */
+
+  const fetchReminders = async () => {
+
+    const token = getToken();
+
+    if (!token) {
+      return;
+    }
+
+    try {
+
+      const response = await fetch(
+        `${API_URL}/reminders`,
+        {
+          headers: {
+            Authorization:
+              `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.status === 401) {
+
+        handleLogout();
+        return;
+
+      }
+
+      if (!response.ok) {
+
+        const data =
+          await response.json()
+            .catch(() => ({}));
+
+        throw new Error(
+          data.detail ||
+          "Failed to fetch reminders"
+        );
+
+      }
+
+      const data =
+        await response.json();
+
+      setReminders(
+        Array.isArray(data)
+          ? data
+          : []
+      );
+
+    } catch (error) {
+
+      console.error(
+        "Reminder fetch error:",
+        error
+      );
+
+      showMessage(
+        error.message ||
+        "Unable to load reminders",
+        "error"
+      );
+
+    }
+  };
+
+  /* =======================================================
+     FETCH ADHERENCE
+  ======================================================= */
+
+  const fetchAdherence = async () => {
+
+    const token = getToken();
+
+    if (!token) {
+      return;
+    }
+
+    try {
+
+      const response = await fetch(
+        `${API_URL}/stats`,
+        {
+          headers: {
+            Authorization:
+              `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.status === 401) {
+
+        handleLogout();
+        return;
+
+      }
+
+      if (!response.ok) {
+
+        const data =
+          await response.json()
+            .catch(() => ({}));
+
+        throw new Error(
+          data.detail ||
+          "Failed to fetch adherence"
+        );
+
+      }
+
+      const data =
+        await response.json();
+
+      setAdherence(data);
+
+    } catch (error) {
+
+      console.error(
+        "Adherence fetch error:",
+        error
+      );
+
+      setAdherence(null);
+
+    }
+  };
+
+  /* =======================================================
+     FETCH AI RECOMMENDATIONS
+  ======================================================= */
+
+  const fetchAIRecommendations = async (
+    medicationList = medications
+  ) => {
+
+    const token = getToken();
+
+    if (!token) {
+      return;
+    }
+
+    if (!Array.isArray(medicationList)) {
+      return;
+    }
+
+    try {
+
+      const recommendations = [];
+
+      for (
+        const medication of medicationList
+      ) {
+
+        try {
+
+          const response =
+            await fetch(
+              `${API_URL}/ai/medications/${medication.id}/recommendation`,
+              {
+                headers: {
+                  Authorization:
+                    `Bearer ${token}`,
+                },
+              }
+            );
+
+          if (
+            response.status === 401
+          ) {
+
+            handleLogout();
+            return;
+
+          }
+
+          if (!response.ok) {
+            continue;
+          }
+
+          const data =
+            await response.json();
+
+          recommendations.push(data);
+
+        } catch (error) {
+
+          console.error(
+            `AI error for medication ${medication.id}:`,
+            error
+          );
+
+        }
+      }
+
+      setAiRecommendations(
+        recommendations
+      );
+
+    } catch (error) {
+
+      console.error(
+        "AI recommendation error:",
+        error
+      );
+
+      setAiRecommendations([]);
+
+    }
+  };
+
+  /* =======================================================
+     ADD MEDICATION
+  ======================================================= */
+
+  const addMedication = async (
+    medication
+  ) => {
+
+    console.log(
+      "APP addMedication called:",
+      medication
+    );
+
+    const token = getToken();
+
+    if (!token) {
+
+      showMessage(
+        "Please login again",
+        "error"
+      );
+
+      return false;
+    }
+
+    try {
+
+      const userId =
+        getUserIdFromToken(token);
+
+      console.log(
+        "APP user ID:",
+        userId
+      );
+
+      if (!userId) {
+
+        throw new Error(
+          "User ID not found in authentication token"
+        );
+
+      }
+
+      console.log(
+        "APP POST URL:",
+        `${API_URL}/users/${userId}/medications`
+      );
+
+      const response =
+        await fetch(
+          `${API_URL}/users/${userId}/medications`,
+          {
+            method: "POST",
+
+            headers: {
+              Authorization:
+                `Bearer ${token}`,
+
+              "Content-Type":
+                "application/json",
+            },
+
+            body: JSON.stringify(
+              medication
+            ),
+          }
+        );
+
+      const data =
+        await response.json()
+          .catch(() => ({}));
+
+      console.log(
+        "APP ADD RESPONSE:",
+        response.status,
+        data
+      );
+
+      if (!response.ok) {
+
+        throw new Error(
+          data.detail ||
+          "Failed to add medication"
+        );
+
+      }
+
+      await fetchMedications();
+
+      await fetchReminders();
+
+      showMessage(
+        "Medication added successfully"
+      );
+
+      return true;
+
+    } catch (error) {
+
+      console.error(
+        "Add medication error:",
+        error
+      );
+
+      showMessage(
+        error.message ||
+        "Failed to add medication",
+        "error"
+      );
+
+      return false;
+    }
+  };
+
+  /* =======================================================
+     UPDATE MEDICATION
+  ======================================================= */
+
+  const updateMedication = async (
+    medicationId,
+    medication
+  ) => {
+
+    const token = getToken();
+
+    if (!token) {
+      return false;
+    }
+
+    try {
+
+      const response =
+        await fetch(
+          `${API_URL}/medications/${medicationId}`,
+          {
+            method: "PUT",
+
+            headers: {
+              Authorization:
+                `Bearer ${token}`,
+
+              "Content-Type":
+                "application/json",
+            },
+
+            body: JSON.stringify(
+              medication
+            ),
+          }
+        );
+
+      const data =
+        await response.json()
+          .catch(() => ({}));
+
+      if (!response.ok) {
+
+        throw new Error(
+          data.detail ||
+          "Failed to update medication"
+        );
+
+      }
+
+      await fetchMedications();
+
+      await fetchReminders();
+
+      showMessage(
+        "Medication updated successfully"
+      );
+
+      return true;
+
+    } catch (error) {
+
+      console.error(
+        "Update medication error:",
+        error
+      );
+
+      showMessage(
+        error.message ||
+        "Failed to update medication",
+        "error"
+      );
+
+      return false;
+    }
+  };
+
+  /* =======================================================
+     DELETE MEDICATION
+  ======================================================= */
+
+  const deleteMedication = async (
+    medicationId
+  ) => {
+
+    const token = getToken();
+
+    if (!token) {
+      return false;
+    }
+
+    try {
+
+      const response =
+        await fetch(
+          `${API_URL}/medications/${medicationId}`,
+          {
+            method: "DELETE",
+
+            headers: {
+              Authorization:
+                `Bearer ${token}`,
+            },
+          }
+        );
+
+      const data =
+        await response.json()
+          .catch(() => ({}));
+
+      if (!response.ok) {
+
+        throw new Error(
+          data.detail ||
+          "Failed to delete medication"
+        );
+
+      }
+
+      await fetchMedications();
+
+      await fetchReminders();
+
+      showMessage(
+        "Medication deleted successfully"
+      );
+
+      return true;
+
+    } catch (error) {
+
+      console.error(
+        "Delete medication error:",
+        error
+      );
+
+      showMessage(
+        error.message ||
+        "Failed to delete medication",
+        "error"
+      );
+
+      return false;
+    }
+  };
+
+  /* =======================================================
+     TOGGLE MEDICATION STATUS
+  ======================================================= */
+
+  const toggleMedicationStatus =
+    async (
+      medicationId,
+      active
+    ) => {
+
+      const token = getToken();
+
+      if (!token) {
+        return false;
+      }
+
+      try {
+
+        const response =
+          await fetch(
+            `${API_URL}/medications/${medicationId}/status`,
+            {
+              method: "PATCH",
+
+              headers: {
+                Authorization:
+                  `Bearer ${token}`,
+
+                "Content-Type":
+                  "application/json",
+              },
+
+              body: JSON.stringify({
+                active,
+              }),
+            }
+          );
+
+        const data =
+          await response.json()
+            .catch(() => ({}));
+
+        if (!response.ok) {
+
+          throw new Error(
+            data.detail ||
+            "Failed to update status"
+          );
+
+        }
+
+        await fetchMedications();
+
+        showMessage(
+          active
+            ? "Medication activated"
+            : "Medication deactivated"
+        );
+
+        return true;
+
+      } catch (error) {
+
+        console.error(
+          "Status update error:",
+          error
+        );
+
+        showMessage(
+          error.message ||
+          "Failed to update medication status",
+          "error"
+        );
+
+        return false;
+      }
+    };
+
+  /* =======================================================
+     MARK TAKEN
+  ======================================================= */
+
+  const markTaken = async (
+    medicationId
+  ) => {
+
+    const token = getToken();
+
+    if (!token) {
+      return false;
+    }
+
+    try {
+
+      const response =
+        await fetch(
+          `${API_URL}/medications/${medicationId}/taken`,
+          {
+            method: "POST",
+
+            headers: {
+              Authorization:
+                `Bearer ${token}`,
+            },
+          }
+        );
+
+      const data =
+        await response.json()
+          .catch(() => ({}));
+
+      if (!response.ok) {
+
+        throw new Error(
+          data.detail ||
+          "Failed to mark medication as taken"
+        );
+
+      }
+
+      await Promise.all([
+        fetchMedications(),
+        fetchReminders(),
+        fetchAdherence(),
       ]);
 
       showMessage(
-        "Medication added successfully."
+        "Medicine marked as taken"
       );
 
-      return data;
+      return true;
+
     } catch (error) {
+
+      console.error(
+        "Taken error:",
+        error
+      );
+
       showMessage(
         error.message ||
-          "Unable to add medication.",
+        "Failed to mark medicine as taken",
         "error"
       );
 
-      throw error;
+      return false;
     }
-  }
+  };
 
-  async function updateMedication(
-    medicationId,
-    medication
-  ) {
-    try {
-      const data = await apiFetch(
-        `/medications/${medicationId}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify(medication),
-        }
-      );
+  /* =======================================================
+     MARK MISSED
+  ======================================================= */
 
-      setMedications((previous) =>
-        previous.map((item) =>
-          item.id === medicationId
-            ? data
-            : item
-        )
-      );
-
-      showMessage(
-        "Medication updated successfully."
-      );
-
-      return data;
-    } catch (error) {
-      showMessage(
-        error.message ||
-          "Unable to update medication.",
-        "error"
-      );
-
-      throw error;
-    }
-  }
-
-  async function deleteMedication(
+  const markMissed = async (
     medicationId
-  ) {
-    try {
-      await apiFetch(
-        `/medications/${medicationId}`,
-        {
-          method: "DELETE",
-        }
-      );
+  ) => {
 
-      setMedications((previous) =>
-        previous.filter(
-          (item) =>
-            item.id !== medicationId
-        )
-      );
+    const token = getToken();
+
+    if (!token) {
+      return false;
+    }
+
+    try {
+
+      const response =
+        await fetch(
+          `${API_URL}/medications/${medicationId}/missed`,
+          {
+            method: "POST",
+
+            headers: {
+              Authorization:
+                `Bearer ${token}`,
+            },
+          }
+        );
+
+      const data =
+        await response.json()
+          .catch(() => ({}));
+
+      if (!response.ok) {
+
+        throw new Error(
+          data.detail ||
+          "Failed to mark medication as missed"
+        );
+
+      }
+
+      await Promise.all([
+        fetchMedications(),
+        fetchReminders(),
+        fetchAdherence(),
+      ]);
 
       showMessage(
-        "Medication deleted successfully."
+        "Medicine marked as missed"
       );
+
+      return true;
+
     } catch (error) {
+
+      console.error(
+        "Missed error:",
+        error
+      );
+
       showMessage(
         error.message ||
-          "Unable to delete medication.",
+        "Failed to mark medicine as missed",
         "error"
       );
+
+      return false;
     }
-  }
+  };
 
-  async function updateMedicationStatus(
-    medicationId,
-    active
-  ) {
-    try {
-      const data = await apiFetch(
-        `/medications/${medicationId}/status?active=${active}`,
-        {
-          method: "PATCH",
-        }
-      );
+  /* =======================================================
+     INITIAL DATA LOAD
+  ======================================================= */
 
-      setMedications((previous) =>
-        previous.map((item) =>
-          item.id === medicationId
-            ? {
-                ...item,
-                active:
-                  data.active ?? active,
-              }
-            : item
-        )
-      );
+  useEffect(() => {
 
-      showMessage(
-        active
-          ? "Medication activated."
-          : "Medication deactivated."
-      );
-    } catch (error) {
-      showMessage(
-        error.message ||
-          "Unable to update medication status.",
-        "error"
-      );
-    }
-  }
+    const token = getToken();
 
-  async function markTaken(
-    medicationId
-  ) {
-    try {
-      await apiFetch(
-        `/medications/${medicationId}/taken`,
-        {
-          method: "POST",
-        }
-      );
-
-      showMessage(
-        "Medicine marked as taken."
-      );
-
-      await fetchReminders();
-      await fetchMedications();
-      await fetchAdherence();
-    } catch (error) {
-      showMessage(
-        error.message ||
-          "Unable to mark medicine as taken.",
-        "error"
-      );
-    }
-  }
-
-  async function markMissed(
-    medicationId
-  ) {
-    try {
-      await apiFetch(
-        `/medications/${medicationId}/missed`,
-        {
-          method: "POST",
-        }
-      );
-
-      showMessage(
-        "Medicine marked as missed.",
-        "error"
-      );
-
-      await fetchReminders();
-      await fetchMedications();
-      await fetchAdherence();
-    } catch (error) {
-      showMessage(
-        error.message ||
-          "Unable to mark medicine as missed.",
-        "error"
-      );
-    }
-  }
-
-  async function refreshData() {
-    if (!isAuthenticated) {
+    if (!token) {
       return;
     }
 
-    await fetchMedications();
-    await fetchReminders();
-  }
+    const loadData =
+      async () => {
+
+        await fetchMedications();
+
+        await fetchReminders();
+
+        await fetchAdherence();
+
+      };
+
+    loadData();
+
+  }, []);
+
+  /* =======================================================
+     AI UPDATE WHEN MEDICATIONS CHANGE
+  ======================================================= */
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      return;
-    }
 
-    const storedUsername =
-      localStorage.getItem("username");
-
-    if (storedUsername) {
-      setUsername(storedUsername);
-    }
-
-    fetchMedications();
-    fetchReminders();
-  }, [isAuthenticated]);
-
-  useEffect(() => {
     if (medications.length > 0) {
-      fetchAdherence();
+
+      fetchAIRecommendations(
+        medications
+      );
+
+    } else {
+
+      setAiRecommendations([]);
+
     }
+
   }, [medications]);
 
-  if (!isAuthenticated) {
+  /* =======================================================
+     REFRESH ALL
+  ======================================================= */
+
+  const refreshAll = async () => {
+
+    await fetchMedications();
+
+    await fetchReminders();
+
+    await fetchAdherence();
+
+  };
+
+  /* =======================================================
+     APPLICATION LAYOUT
+  ======================================================= */
+
+  return (
+    <div className="app-layout">
+
+      <Sidebar
+        onLogout={handleLogout}
+      />
+
+      <div className="main-area">
+
+        <TopBar />
+
+        <MessageBanner
+          message={message}
+          type={messageType}
+          onClose={() =>
+            setMessage("")
+          }
+        />
+
+        {loading && (
+          <div className="global-loading">
+            Loading...
+          </div>
+        )}
+
+        <main className="content-area">
+
+          <Routes>
+
+            {/* =================================================
+                DASHBOARD
+            ================================================= */}
+
+            <Route
+              path="/dashboard"
+              element={
+                <Dashboard
+                  medications={medications}
+                  reminders={reminders}
+                  adherence={adherence}
+                  onRefresh={refreshAll}
+                  onMarkTaken={markTaken}
+                  onMarkMissed={markMissed}
+                />
+              }
+            />
+
+            {/* =================================================
+                MEDICATIONS
+            ================================================= */}
+
+            <Route
+              path="/medications"
+              element={
+                <Medications
+                  medications={medications}
+
+                  /*
+                    IMPORTANT:
+                    Explicit wrapper for Add Medication
+                  */
+
+                  onAddMedication={(
+                    medication
+                  ) => {
+
+                    console.log(
+                      "ROUTE → onAddMedication:",
+                      medication
+                    );
+
+                    return addMedication(
+                      medication
+                    );
+                  }}
+
+                  onUpdateMedication={(
+                    id,
+                    medication
+                  ) => {
+
+                    return updateMedication(
+                      id,
+                      medication
+                    );
+
+                  }}
+
+                  onDeleteMedication={(
+                    id
+                  ) => {
+
+                    return deleteMedication(
+                      id
+                    );
+
+                  }}
+
+                  onToggleStatus={(
+                    id,
+                    active
+                  ) => {
+
+                    return toggleMedicationStatus(
+                      id,
+                      active
+                    );
+
+                  }}
+
+                  onMarkTaken={(
+                    id
+                  ) => {
+
+                    return markTaken(id);
+
+                  }}
+
+                  onMarkMissed={(
+                    id
+                  ) => {
+
+                    return markMissed(id);
+
+                  }}
+                />
+              }
+            />
+
+            {/* =================================================
+                REMINDERS
+            ================================================= */}
+
+            <Route
+              path="/reminders"
+              element={
+                <Reminders
+                  reminders={reminders}
+                  medications={medications}
+                  onRefresh={fetchReminders}
+                />
+              }
+            />
+
+            {/* =================================================
+                ANALYTICS
+            ================================================= */}
+
+            <Route
+              path="/analytics"
+              element={
+                <Analytics
+                  medications={medications}
+                  reminders={reminders}
+                  adherence={adherence}
+                />
+              }
+            />
+
+            {/* =================================================
+                AI INSIGHTS
+            ================================================= */}
+
+            <Route
+              path="/ai"
+              element={
+                <AIInsights
+                  medications={medications}
+                  aiRecommendations={
+                    aiRecommendations
+                  }
+                  onRefresh={() =>
+                    fetchAIRecommendations(
+                      medications
+                    )
+                  }
+                />
+              }
+            />
+
+            {/* =================================================
+                DEFAULT
+            ================================================= */}
+
+            <Route
+              path="*"
+              element={
+                <Navigate
+                  to="/dashboard"
+                  replace
+                />
+              }
+            />
+
+          </Routes>
+
+        </main>
+
+      </div>
+
+    </div>
+  );
+}
+
+/* =========================================================
+   ROOT APP
+========================================================= */
+
+function RootApp() {
+
+  const [isLoggedIn, setIsLoggedIn] =
+    useState(
+      Boolean(getToken())
+    );
+
+  const handleLogin = () => {
+    setIsLoggedIn(true);
+  };
+
+  if (!isLoggedIn) {
+
     return (
       <BrowserRouter>
+
         <Routes>
+
           <Route
-            path="*"
+            path="/login"
             element={
-              <Login
-                onLogin={() =>
-                  setIsAuthenticated(true)
-                }
+              <LoginPage
+                onLogin={handleLogin}
               />
             }
           />
+
+          <Route
+            path="*"
+            element={
+              <Navigate
+                to="/login"
+                replace
+              />
+            }
+          />
+
         </Routes>
+
       </BrowserRouter>
     );
   }
 
   return (
     <BrowserRouter>
-      <Routes>
-        <Route
-          path="/"
-          element={
-            <Navigate
-              to="/dashboard"
-              replace
-            />
-          }
-        />
-
-        <Route
-          path="/dashboard"
-          element={
-            <AppLayout
-              onLogout={logout}
-              username={username}
-            >
-              <Dashboard
-                medications={medications}
-                reminders={reminders}
-                adherenceData={adherenceData}
-                onRefresh={refreshData}
-              />
-
-              <MessageBanner
-                message={message}
-                type={messageType}
-                onClose={() =>
-                  setMessage("")
-                }
-              />
-            </AppLayout>
-          }
-        />
-
-        <Route
-          path="/medications"
-          element={
-            <AppLayout
-              onLogout={logout}
-              username={username}
-            >
-              <Medications
-                medications={medications}
-                onAdd={addMedication}
-                onUpdate={updateMedication}
-                onDelete={deleteMedication}
-                onStatusChange={
-                  updateMedicationStatus
-                }
-                onTaken={markTaken}
-                onMissed={markMissed}
-              />
-
-              <MessageBanner
-                message={message}
-                type={messageType}
-                onClose={() =>
-                  setMessage("")
-                }
-              />
-            </AppLayout>
-          }
-        />
-
-        <Route
-          path="/reminders"
-          element={
-            <AppLayout
-              onLogout={logout}
-              username={username}
-            >
-              <Reminders
-                reminders={reminders}
-                medications={medications}
-                onRefresh={refreshData}
-              />
-
-              <MessageBanner
-                message={message}
-                type={messageType}
-                onClose={() =>
-                  setMessage("")
-                }
-              />
-            </AppLayout>
-          }
-        />
-
-        <Route
-          path="/analytics"
-          element={
-            <AppLayout
-              onLogout={logout}
-              username={username}
-            >
-              <Analytics
-                medications={medications}
-                reminders={reminders}
-                adherenceData={adherenceData}
-              />
-
-              <MessageBanner
-                message={message}
-                type={messageType}
-                onClose={() =>
-                  setMessage("")
-                }
-              />
-            </AppLayout>
-          }
-        />
-
-        <Route
-          path="/ai"
-          element={
-            <AppLayout
-              onLogout={logout}
-              username={username}
-            >
-              <AIInsights
-                medications={medications}
-                adherenceData={adherenceData}
-                apiFetch={apiFetch}
-              />
-
-              <MessageBanner
-                message={message}
-                type={messageType}
-                onClose={() =>
-                  setMessage("")
-                }
-              />
-            </AppLayout>
-          }
-        />
-
-        <Route
-          path="*"
-          element={
-            <Navigate
-              to="/dashboard"
-              replace
-            />
-          }
-        />
-      </Routes>
+      <MainApp />
     </BrowserRouter>
   );
 }
 
-export default App;
-
+export default RootApp;
 
 
 
