@@ -1,13 +1,13 @@
 from datetime import datetime
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Depends
-from contextlib import asynccontextmanager
-from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy.orm import Session
 from fastapi.middleware.cors import CORSMiddleware
-from scheduler import start_scheduler, stop_scheduler
+from fastapi.security import OAuth2PasswordRequestForm
 
-from database import engine, SessionLocal, Base
+from sqlalchemy.orm import Session
+
+from database import Base, engine, SessionLocal
 
 from models import (
     User,
@@ -30,8 +30,10 @@ from security import (
     get_current_user_id
 )
 
-
-
+from scheduler import (
+    start_scheduler,
+    stop_scheduler
+)
 
 from ai_service import (
     generate_medication_advice,
@@ -39,17 +41,20 @@ from ai_service import (
     generate_ai_action
 )
 
+
 # ============================================================
 # DATABASE INITIALIZATION
 # ============================================================
 
 print("Creating tables...")
+
 Base.metadata.create_all(bind=engine)
+
 print("Done")
 
 
 # ============================================================
-# FASTAPI APPLICATION
+# APPLICATION LIFESPAN
 # ============================================================
 
 @asynccontextmanager
@@ -62,22 +67,32 @@ async def lifespan(app: FastAPI):
     stop_scheduler()
 
 
+# ============================================================
+# FASTAPI APPLICATION
+# ============================================================
+
 app = FastAPI(
     title="Medication Reminder Agent",
-    description="Medication management and reminder backend",
+    description="AI-powered medication management and reminder system",
     version="1.0.0",
     lifespan=lifespan
 )
 
+
+# ============================================================
+# CORS
+# ============================================================
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
 
 
 # ============================================================
@@ -97,6 +112,7 @@ def home():
 # USER CRUD
 # ============================================================
 
+
 # ------------------------------------------------------------
 # CREATE USER
 # ------------------------------------------------------------
@@ -107,7 +123,9 @@ def home():
     status_code=201,
     tags=["Users"]
 )
-def create_user(user_data: UserCreate):
+def create_user(
+    user_data: UserCreate
+):
 
     db: Session = SessionLocal()
 
@@ -135,7 +153,9 @@ def create_user(user_data: UserCreate):
         )
 
         db.add(user)
+
         db.commit()
+
         db.refresh(user)
 
         return user
@@ -180,7 +200,9 @@ def get_users():
     response_model=UserResponse,
     tags=["Users"]
 )
-def get_user(user_id: int):
+def get_user(
+    user_id: int
+):
 
     db: Session = SessionLocal()
 
@@ -246,6 +268,7 @@ def update_user(
             )
 
         user.username = user_data.username
+
         user.email = user_data.email
 
         user.password = hash_password(
@@ -253,6 +276,7 @@ def update_user(
         )
 
         db.commit()
+
         db.refresh(user)
 
         return user
@@ -270,7 +294,9 @@ def update_user(
     "/users/{user_id}",
     tags=["Users"]
 )
-def delete_user(user_id: int):
+def delete_user(
+    user_id: int
+):
 
     db: Session = SessionLocal()
 
@@ -288,6 +314,7 @@ def delete_user(user_id: int):
             )
 
         db.delete(user)
+
         db.commit()
 
         return {
@@ -301,8 +328,13 @@ def delete_user(user_id: int):
 
 
 # ============================================================
-# REGISTER
+# AUTHENTICATION
 # ============================================================
+
+
+# ------------------------------------------------------------
+# REGISTER
+# ------------------------------------------------------------
 
 @app.post(
     "/register",
@@ -340,7 +372,9 @@ def register(
         )
 
         db.add(user)
+
         db.commit()
+
         db.refresh(user)
 
         return {
@@ -353,9 +387,9 @@ def register(
         db.close()
 
 
-# ============================================================
+# ------------------------------------------------------------
 # LOGIN
-# ============================================================
+# ------------------------------------------------------------
 
 @app.post(
     "/login",
@@ -369,8 +403,8 @@ def login(
 
     try:
 
-        # OAuth2 username field contains EMAIL
         email = form_data.username
+
         password = form_data.password
 
         user = db.query(User).filter(
@@ -415,6 +449,7 @@ def login(
 # MEDICATION CRUD
 # ============================================================
 
+
 # ------------------------------------------------------------
 # ADD MEDICATION
 # ------------------------------------------------------------
@@ -431,7 +466,6 @@ def add_medication(
     current_user_id: int = Depends(get_current_user_id)
 ):
 
-    # User can only add medication to their own account
     if user_id != current_user_id:
 
         raise HTTPException(
@@ -464,7 +498,9 @@ def add_medication(
         )
 
         db.add(medication)
+
         db.commit()
+
         db.refresh(medication)
 
         return medication
@@ -499,17 +535,6 @@ def get_user_medications(
 
     try:
 
-        user = db.query(User).filter(
-            User.id == user_id
-        ).first()
-
-        if user is None:
-
-            raise HTTPException(
-                status_code=404,
-                detail="User not found"
-            )
-
         medications = db.query(Medication).filter(
             Medication.user_id == user_id
         ).order_by(
@@ -524,7 +549,7 @@ def get_user_medications(
 
 
 # ------------------------------------------------------------
-# GET ALL MEDICATIONS
+# GET ALL CURRENT USER MEDICATIONS
 # ------------------------------------------------------------
 
 @app.get(
@@ -652,6 +677,7 @@ def update_medication(
         medication.updated_at = datetime.utcnow()
 
         db.commit()
+
         db.refresh(medication)
 
         return medication
@@ -662,7 +688,7 @@ def update_medication(
 
 
 # ------------------------------------------------------------
-# ACTIVATE / DEACTIVATE MEDICATION
+# ACTIVATE / DEACTIVATE
 # ------------------------------------------------------------
 
 @app.patch(
@@ -698,6 +724,7 @@ def update_medication_status(
             )
 
         medication.active = active
+
         medication.updated_at = datetime.utcnow()
 
         db.commit()
@@ -749,6 +776,7 @@ def delete_medication(
             )
 
         db.delete(medication)
+
         db.commit()
 
         return {
@@ -764,6 +792,7 @@ def delete_medication(
 # ============================================================
 # MEDICATION LOGS
 # ============================================================
+
 
 # ------------------------------------------------------------
 # MARK MEDICATION AS TAKEN
@@ -782,7 +811,6 @@ def mark_medication_taken(
 
     try:
 
-        # Find medication
         medication = db.query(Medication).filter(
             Medication.id == medication_id,
             Medication.user_id == current_user_id
@@ -797,7 +825,6 @@ def mark_medication_taken(
 
         now = datetime.now()
 
-        # Find latest pending reminder event
         reminder_event = db.query(
             ReminderEvent
         ).filter(
@@ -809,12 +836,10 @@ def mark_medication_taken(
             ReminderEvent.scheduled_at.desc()
         ).first()
 
-        # If pending reminder exists, mark it TAKEN
         if reminder_event:
 
             reminder_event.status = "TAKEN"
 
-        # Create medication log
         medication_log = MedicationLog(
             user_id=current_user_id,
             medication_id=medication_id,
@@ -854,6 +879,7 @@ def mark_medication_taken(
     except HTTPException:
 
         db.rollback()
+
         raise
 
     except Exception as e:
@@ -878,7 +904,7 @@ def mark_medication_taken(
     "/medications/{medication_id}/missed",
     tags=["Medication Logs"]
 )
-def mark_missed(
+def mark_medication_missed(
     medication_id: int,
     current_user_id: int = Depends(get_current_user_id)
 ):
@@ -916,7 +942,9 @@ def mark_missed(
         )
 
         db.add(log)
+
         db.commit()
+
         db.refresh(log)
 
         return {
@@ -932,7 +960,7 @@ def mark_missed(
 
 
 # ------------------------------------------------------------
-# GET ALL LOGS
+# GET CURRENT USER LOGS
 # ------------------------------------------------------------
 
 @app.get(
@@ -977,7 +1005,7 @@ def get_logs(
 
 
 # ------------------------------------------------------------
-# GET USER MEDICATION LOGS
+# GET USER LOGS
 # ------------------------------------------------------------
 
 @app.get(
@@ -999,17 +1027,6 @@ def get_user_logs(
     db: Session = SessionLocal()
 
     try:
-
-        user = db.query(User).filter(
-            User.id == user_id
-        ).first()
-
-        if user is None:
-
-            raise HTTPException(
-                status_code=404,
-                detail="User not found"
-            )
 
         logs = db.query(
             MedicationLog
@@ -1039,15 +1056,30 @@ def get_user_logs(
         db.close()
 
 
+# ============================================================
+# REMINDERS
+# ============================================================
 
-@app.get("/reminders")
+
+# ------------------------------------------------------------
+# GET REMINDERS
+# ------------------------------------------------------------
+
+@app.get(
+    "/reminders",
+    tags=["Reminders"]
+)
 def get_reminders(
     current_user_id: int = Depends(get_current_user_id)
 ):
-    db = SessionLocal()
+
+    db: Session = SessionLocal()
 
     try:
-        reminders = db.query(ReminderEvent).filter(
+
+        reminders = db.query(
+            ReminderEvent
+        ).filter(
             ReminderEvent.user_id == current_user_id
         ).order_by(
             ReminderEvent.scheduled_at.desc()
@@ -1056,24 +1088,37 @@ def get_reminders(
         return reminders
 
     finally:
+
         db.close()
 
 
-@app.get("/users/{user_id}/reminders")
+# ------------------------------------------------------------
+# GET USER REMINDERS
+# ------------------------------------------------------------
+
+@app.get(
+    "/users/{user_id}/reminders",
+    tags=["Reminders"]
+)
 def get_user_reminders(
     user_id: int,
     current_user_id: int = Depends(get_current_user_id)
 ):
+
     if user_id != current_user_id:
+
         raise HTTPException(
             status_code=403,
             detail="Not authorized to access these reminders"
         )
 
-    db = SessionLocal()
+    db: Session = SessionLocal()
 
     try:
-        reminders = db.query(ReminderEvent).filter(
+
+        reminders = db.query(
+            ReminderEvent
+        ).filter(
             ReminderEvent.user_id == user_id
         ).order_by(
             ReminderEvent.scheduled_at.desc()
@@ -1082,18 +1127,30 @@ def get_user_reminders(
         return reminders
 
     finally:
+
         db.close()
 
 
+# ============================================================
+# AI AGENT
+# ============================================================
 
 
-@app.post("/ai/medication-advice", tags=["AI Agent"])
+# ------------------------------------------------------------
+# MEDICATION ADVICE
+# ------------------------------------------------------------
+
+@app.post(
+    "/ai/medication-advice",
+    tags=["AI Agent"]
+)
 def medication_advice(
     medicine_name: str,
     dosage: str,
     symptom: str,
     current_user_id: int = Depends(get_current_user_id)
 ):
+
     return generate_medication_advice(
         medicine_name=medicine_name,
         dosage=dosage,
@@ -1101,6 +1158,9 @@ def medication_advice(
     )
 
 
+# ------------------------------------------------------------
+# AI ADHERENCE ANALYSIS
+# ------------------------------------------------------------
 
 @app.get(
     "/ai/medications/{medication_id}/adherence",
@@ -1110,21 +1170,26 @@ def analyze_medication_adherence(
     medication_id: int,
     current_user_id: int = Depends(get_current_user_id)
 ):
+
     db: Session = SessionLocal()
 
     try:
+
         medication = db.query(Medication).filter(
             Medication.id == medication_id,
             Medication.user_id == current_user_id
         ).first()
 
         if medication is None:
+
             raise HTTPException(
                 status_code=404,
                 detail="Medication not found"
             )
 
-        logs = db.query(MedicationLog).filter(
+        logs = db.query(
+            MedicationLog
+        ).filter(
             MedicationLog.medication_id == medication_id,
             MedicationLog.user_id == current_user_id
         ).order_by(
@@ -1137,7 +1202,13 @@ def analyze_medication_adherence(
         )
 
     finally:
+
         db.close()
+
+
+# ------------------------------------------------------------
+# AI RECOMMENDATION
+# ------------------------------------------------------------
 
 @app.get(
     "/ai/medications/{medication_id}/recommendation",
@@ -1147,32 +1218,43 @@ def medication_recommendation(
     medication_id: int,
     current_user_id: int = Depends(get_current_user_id)
 ):
+
     db: Session = SessionLocal()
 
     try:
+
         medication = db.query(Medication).filter(
             Medication.id == medication_id,
             Medication.user_id == current_user_id
         ).first()
 
         if medication is None:
+
             raise HTTPException(
                 status_code=404,
                 detail="Medication not found"
             )
 
-        logs = db.query(MedicationLog).filter(
+        logs = db.query(
+            MedicationLog
+        ).filter(
             MedicationLog.medication_id == medication_id,
             MedicationLog.user_id == current_user_id
         ).all()
 
         total = len(logs)
-        taken_count = sum(1 for log in logs if log.taken)
+
+        taken_count = sum(
+            1 for log in logs
+            if log.taken
+        )
+
         missed_count = total - taken_count
 
         adherence_percentage = 0
 
         if total > 0:
+
             adherence_percentage = round(
                 (taken_count / total) * 100,
                 2
@@ -1195,12 +1277,8 @@ def medication_recommendation(
         }
 
     finally:
+
         db.close()
-
-
-
-
-
 
 
 # ============================================================
@@ -1218,10 +1296,6 @@ def stats(
     db: Session = SessionLocal()
 
     try:
-
-        total_users = db.query(
-            User
-        ).count()
 
         total_medications = db.query(
             Medication
@@ -1266,7 +1340,6 @@ def stats(
             )
 
         return {
-            "total_users": total_users,
             "total_medications": total_medications,
             "active_medications": active_medications,
             "total_logs": total_logs,
