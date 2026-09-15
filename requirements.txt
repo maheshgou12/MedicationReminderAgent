@@ -8,3 +8,4 @@ apscheduler
 passlib[bcrypt]
 python-jose
 python-dotenv
+python-multipart
