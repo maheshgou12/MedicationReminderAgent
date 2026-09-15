@@ -6,6 +6,8 @@ pydantic
 email-validator
 apscheduler
 passlib[bcrypt]
+bcrypt==4.0.1
 python-jose
 python-dotenv
 python-multipart
+
