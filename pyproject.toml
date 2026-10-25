@@ -1,0 +1,22 @@
+[project]
+name = "medication-reminder-agent"
+version = "1.0.0"
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F"]
+ignore = [
+    "E501",  # long lines: existing style, enforced loosely
+    "E712",  # == True/False needed for SQLAlchemy query expressions
+]
+
+[tool.ruff.lint.per-file-ignores]
+"ai_service.py" = ["E402"]
+"tests/*" = ["E402"]
+
+[tool.ruff.format]
+quote-style = "double"

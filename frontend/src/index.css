@@ -1,0 +1,81 @@
+/* =========================================================
+   THEME VARIABLES (light default, [data-theme="dark"] override)
+======================================================== */
+
+:root {
+  --bg: #f8fafc;
+  --bg-soft: #f1f5f9;
+  --card: #ffffff;
+  --text: #0f172a;
+  --heading: #111827;
+  --text-soft: #475569;
+  --muted: #64748b;
+  --faint: #94a3b8;
+  --border: #e2e8f0;
+  --border-soft: #f1f5f9;
+  --border-strong: #cbd5e1;
+  --tint: #eef2ff;
+  --accent: #4f46e5;
+  --on-accent: #ffffff;
+  --input-bg: #ffffff;
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --bg: #0b1220;
+  --bg-soft: #111c33;
+  --card: #131e35;
+  --text: #e6ecf7;
+  --heading: #f1f5f9;
+  --text-soft: #b6c2d8;
+  --muted: #93a1bb;
+  --faint: #64748b;
+  --border: #24334f;
+  --border-soft: #1a2742;
+  --border-strong: #33456a;
+  --tint: #1c2450;
+  --accent: #818cf8;
+  --on-accent: #0b1220;
+  --input-bg: #0f1930;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100%;
+}
+
+body {
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+
+  background: var(--bg);
+  color: var(--text);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  text-decoration: none;
+}

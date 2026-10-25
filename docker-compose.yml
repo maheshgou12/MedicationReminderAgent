@@ -1,0 +1,31 @@
+# Local parity stack: API + PostgreSQL (mirrors Render production).
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: medication_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - db
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@db:5432/medication_db
+      SECRET_KEY: change-me-in-production
+      ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+      PORT: 8000
+    env_file:
+      - .env
+
+volumes:
+  pgdata:

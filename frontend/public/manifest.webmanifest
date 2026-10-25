@@ -1,0 +1,17 @@
+{
+  "name": "MedAssist - Medication Reminder Agent",
+  "short_name": "MedAssist",
+  "description": "Smart medication management, reminders and adherence insights.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

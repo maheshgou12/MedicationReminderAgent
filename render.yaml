@@ -1,0 +1,23 @@
+# Render blueprint: Web Service + managed PostgreSQL (free tier OK).
+# Push this repo to GitHub, then: Render dashboard -> New -> Blueprint -> select repo.
+services:
+  - type: web
+    name: medication-reminder-agent
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: medication-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALLOWED_ORIGINS
+        value: https://medication-reminder-agent-ochre.vercel.app
+      - key: PYTHON_VERSION
+        value: 3.11.9
+
+databases:
+  - name: medication-db
+    plan: free
