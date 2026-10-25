@@ -7,6 +7,7 @@ fastapi==0.142.2
 httpx==0.28.1
 passlib==1.7.4
 psycopg2-binary==2.9.13
+psycopg[binary]>=3.1.0
 pydantic==2.13.5
 pydantic_core==2.46.5
 python-dotenv==1.2.4
