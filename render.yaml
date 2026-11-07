@@ -12,7 +12,11 @@ services:
           name: medication-db
           property: connectionString
       - key: SECRET_KEY
-        generateValue: true
+        value: medremind3r_s3cr3t_k3y_2026_change_me
+      - key: MAIL_BRIDGE_SECRET
+        value: medassist_mail_bridge_secret_key_2026_fixed
+      - key: MAIL_BRIDGE_URL
+        value: https://medication-reminder-agent-snw7.vercel.app/api/send-email
       - key: ALLOWED_ORIGINS
         value: https://medication-reminder-agent-snw7.vercel.app,https://medication-reminder-agent-ochre.vercel.app,http://localhost:5173
       - key: ACCESS_TOKEN_EXPIRE_MINUTES

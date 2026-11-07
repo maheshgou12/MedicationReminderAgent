@@ -568,7 +568,6 @@ def logout(
 def password_reset_request(data: PasswordResetRequest):
     from notification_service import (
         send_password_reset_email_detailed,
-        get_frontend_url,
     )
 
     db: Session = SessionLocal()
@@ -584,7 +583,6 @@ def password_reset_request(data: PasswordResetRequest):
             )
             return {
                 "message": "A reset link has been sent to your email if the account exists.",
-                "reset_url": None,
                 "email_sent": False,
             }
 
@@ -600,9 +598,6 @@ def password_reset_request(data: PasswordResetRequest):
         )
         db.commit()
 
-        frontend_url = get_frontend_url()
-        reset_link = f"{frontend_url}/reset-password?token={raw}"
-
         # Dispatches directly to the user's registered email via HTTPS API / SMTP
         sent, reason = send_password_reset_email_detailed(user.email, raw)
         logger.info(
@@ -615,9 +610,7 @@ def password_reset_request(data: PasswordResetRequest):
 
         return {
             "message": "A reset link has been sent to your email if the account exists.",
-            "reset_url": reset_link,
             "email_sent": sent,
-            "email": user.email,
         }
 
     finally:

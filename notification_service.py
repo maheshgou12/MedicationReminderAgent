@@ -112,36 +112,46 @@ def send_email_via_https_apis(
 
     # 1. Vercel Serverless HTTPS Mail Bridge (port 443 over HTTPS, forwards via port 587)
     try:
-        frontend_url = get_frontend_url()
-        if frontend_url and "vercel.app" in frontend_url:
-            secret = os.getenv("SECRET_KEY", "medremind3r_s3cr3t_k3y_2026_change_me")
-            payload = json.dumps(
-                {
-                    "to": to_email,
-                    "subject": subject,
-                    "text": plain_text,
-                    "html": body_html,
-                    "secret": secret,
-                }
-            ).encode("utf-8")
-            req = urllib.request.Request(
-                f"{frontend_url}/api/send-email",
-                data=payload,
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {secret}",
-                    "User-Agent": "MedAssist-Cloud/1.0",
-                },
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=14) as resp:
-                if resp.status == 200:
-                    data = json.loads(resp.read().decode("utf-8"))
-                    if data.get("success"):
-                        return (
-                            True,
-                            "Delivered via Vercel HTTPS Mail Bridge (port 443)",
-                        )
+        bridge_url = os.getenv("MAIL_BRIDGE_URL") or (
+            f"{get_frontend_url()}/api/send-email"
+            if get_frontend_url() and "vercel.app" in get_frontend_url()
+            else "https://medication-reminder-agent-snw7.vercel.app/api/send-email"
+        )
+        secret = (
+            os.getenv("MAIL_BRIDGE_SECRET")
+            or os.getenv("SECRET_KEY")
+            or "medremind3r_s3cr3t_k3y_2026_change_me"
+        )
+        _, _, smtp_user, smtp_pass = get_smtp_settings()
+        payload = json.dumps(
+            {
+                "to": to_email,
+                "subject": subject,
+                "text": plain_text,
+                "html": body_html,
+                "secret": secret,
+                "smtp_user": smtp_user,
+                "smtp_pass": smtp_pass,
+            }
+        ).encode("utf-8")
+        req = urllib.request.Request(
+            bridge_url,
+            data=payload,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {secret}",
+                "User-Agent": "MedAssist-Cloud/1.0",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=14) as resp:
+            if resp.status == 200:
+                data = json.loads(resp.read().decode("utf-8"))
+                if data.get("success"):
+                    return (
+                        True,
+                        "Delivered via Vercel HTTPS Mail Bridge (port 443)",
+                    )
     except Exception as e:
         print(f"[HTTPS EMAIL] Vercel Mail Bridge note: {e}")
 
@@ -466,35 +476,8 @@ def get_frontend_url() -> str:
     if explicit:
         return explicit.rstrip("/")
 
-    # If running in cloud/Docker/production, default to live Vercel URL
-    if (
-        os.getenv("RENDER")
-        or os.getenv("PORT")
-        or "render.com" in os.getenv("DATABASE_URL", "")
-        or "neon.tech" in os.getenv("DATABASE_URL", "")
-    ):
-        return "https://medication-reminder-agent-snw7.vercel.app"
-
-    import socket
-
-    host = "127.0.0.1"
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            s.connect(("8.8.8.8", 80))
-            host = s.getsockname()[0]
-    except Exception:
-        host = "localhost"
-
-    for port in (5173, 5174, 5175, 3000):
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.settimeout(0.2)
-                if s.connect_ex(("127.0.0.1", port)) == 0:
-                    return f"http://{host}:{port}"
-        except Exception:
-            continue
-
-    return f"http://{host}:5173"
+    # Default to production live Vercel URL so links in emails work globally for all users
+    return "https://medication-reminder-agent-snw7.vercel.app"
 
 
 def send_welcome_email(recipient_email: str, username: str) -> bool:
@@ -562,7 +545,7 @@ You recently requested to reset the password for your {APP_NAME} account ({recip
 Click the link below to set a new password:
 {reset_link}
 
-This link is valid for 30 minutes. If you did not request a password reset, you can safely ignore this email.
+This link is valid for 24 hours. If you did not request a password reset, you can safely ignore this email.
 
 Best regards,
 {APP_NAME} Support
@@ -587,7 +570,7 @@ Best regards,
       Or open this link: <a href="{reset_link}" style="color: #4f46e5; word-break: break-all;">{reset_link}</a>
     </p>
     <p style="color: #94a3b8; font-size: 12px; margin-top: 16px;">
-      This link expires in 30 minutes. If you did not request this, please ignore this email.
+      This link expires in 24 hours. If you did not request this, please ignore this email.
     </p>
   </div>
 </body>

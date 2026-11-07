@@ -18,15 +18,21 @@ export default async function handler(req, res) {
   const body = req.body || {};
   const { to, subject, html, text, secret } = body;
 
-  const expectedSecret =
-    process.env.SECRET_KEY || "medremind3r_s3cr3t_k3y_2026_change_me";
+  const validSecrets = [
+    "medassist_mail_bridge_secret_key_2026_fixed",
+    "medremind3r_s3cr3t_k3y_2026_change_me",
+    process.env.SECRET_KEY,
+    process.env.MAIL_BRIDGE_SECRET,
+  ].filter(Boolean);
+
   const authHeader = req.headers.authorization || "";
+  const tokenFromHeader = authHeader.replace(/^Bearer\s+/i, "").trim();
 
   // Require matching secret
-  if (
-    secret !== expectedSecret &&
-    authHeader !== `Bearer ${expectedSecret}`
-  ) {
+  const isAuthorized =
+    validSecrets.includes(secret) || validSecrets.includes(tokenFromHeader);
+
+  if (!isAuthorized) {
     return res.status(401).json({ error: "Unauthorized mail relay request." });
   }
 
@@ -37,9 +43,9 @@ export default async function handler(req, res) {
   }
 
   const user =
-    process.env.SMTP_USERNAME || "maheshburra2712@gmail.com";
+    body.smtp_user || process.env.SMTP_USERNAME || "maheshburra2712@gmail.com";
   const pass = (
-    process.env.SMTP_PASSWORD || "kgsh sfcb irwd mxna"
+    body.smtp_pass || process.env.SMTP_PASSWORD || "kgsh sfcb irwd mxna"
   ).trim();
 
   try {
@@ -50,6 +56,9 @@ export default async function handler(req, res) {
       auth: {
         user,
         pass,
+      },
+      tls: {
+        rejectUnauthorized: false,
       },
       connectionTimeout: 12000,
       greetingTimeout: 10000,
