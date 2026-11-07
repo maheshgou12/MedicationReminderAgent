@@ -233,6 +233,50 @@ def health():
     }
 
 
+@app.get("/debug/smtp-check", tags=["System"])
+def debug_smtp_check(to: str = Query(default="maheshburra2712@gmail.com")):
+    from email.message import EmailMessage
+    from notification_service import (
+        get_smtp_settings,
+        is_smtp_configured,
+        is_deliverable_email,
+        send_email_via_smtp,
+    )
+
+    host, port, user, password = get_smtp_settings()
+    configured = is_smtp_configured()
+    deliverable = is_deliverable_email(to)
+
+    result = {
+        "host": host,
+        "port": port,
+        "user": user,
+        "password_configured": bool(password),
+        "is_smtp_configured": configured,
+        "is_deliverable": deliverable,
+        "to": to,
+    }
+
+    if not configured:
+        result["error"] = "SMTP not configured"
+        return result
+
+    msg = EmailMessage()
+    msg["From"] = f"MedAssist <{user}>"
+    msg["To"] = to
+    msg["Reply-To"] = user
+    msg["Subject"] = "Diagnostic SMTP Check - MedAssist Cloud"
+    msg.set_content(
+        "Diagnostic email from MedAssist cloud server to verify SMTP delivery."
+    )
+
+    ok, reason = send_email_via_smtp(msg, host, port, user, password)
+    result["sent"] = ok
+    result["reason"] = reason
+
+    return result
+
+
 # ============================================================
 # USER CRUD
 # ============================================================

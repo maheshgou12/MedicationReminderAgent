@@ -98,6 +98,34 @@ def is_smtp_configured() -> bool:
     return True
 
 
+def send_email_via_smtp(
+    message: EmailMessage, host: str, port: int, user: str, password: str
+) -> tuple[bool, str]:
+    """Sends email via STARTTLS on port 587, and falls back to SSL on port 465 if needed."""
+    logs = []
+
+    # Attempt 1: Port 587 (or configured port) STARTTLS
+    try:
+        with smtplib.SMTP(host, port or 587, timeout=12) as server:
+            server.starttls()
+            server.login(user, password)
+            server.send_message(message)
+        return True, f"Delivered via STARTTLS ({host}:{port})"
+    except Exception as e:
+        logs.append(f"STARTTLS ({port}) error: {e}")
+
+    # Attempt 2: Port 465 SSL fallback (cloud environments often allow 465 when 587 is firewalled)
+    try:
+        with smtplib.SMTP_SSL(host, 465, timeout=12) as server:
+            server.login(user, password)
+            server.send_message(message)
+        return True, "Delivered via SSL port 465"
+    except Exception as e:
+        logs.append(f"SSL (465) error: {e}")
+
+    return False, " | ".join(logs)
+
+
 def send_reminder_email(
     recipient_email: str,
     medicine_name: str,
@@ -133,18 +161,17 @@ Please take your medication on time.
 """
         )
 
-        with smtplib.SMTP(host, port, timeout=15) as server:
-            server.starttls()
-            server.login(user, password)
-            server.send_message(message)
+        ok, reason = send_email_via_smtp(message, host, port, user, password)
 
-        print(f"[EMAIL] Reminder email sent to {recipient_email}")
-
-        send_webhook_message(
-            f"Medication Reminder - {medicine_name} ({dosage}) at {reminder_time}"
-        )
-
-        return True
+        if ok:
+            print(f"[EMAIL] Reminder email sent to {recipient_email} ({reason})")
+            send_webhook_message(
+                f"Medication Reminder - {medicine_name} ({dosage}) at {reminder_time}"
+            )
+            return True
+        else:
+            print(f"Email notification error: {reason}")
+            return False
 
     except Exception as e:
         print(f"Email notification error: {e}")
@@ -291,13 +318,17 @@ Best regards,
         message.set_content(plain_text)
         message.add_alternative(html_content, subtype="html")
 
-        with smtplib.SMTP(host, port, timeout=15) as server:
-            server.starttls()
-            server.login(user, password)
-            server.send_message(message)
-
-        print(f"[EMAIL] Welcome email sent successfully to {recipient_email}")
-        return True
+        ok, reason = send_email_via_smtp(message, host, port, user, password)
+        if ok:
+            print(
+                f"[EMAIL] Welcome email sent successfully to {recipient_email} ({reason})"
+            )
+            return True
+        else:
+            print(
+                f"[EMAIL ERROR] Failed to send welcome email to {recipient_email}: {reason}"
+            )
+            return False
 
     except Exception as e:
         print(f"[EMAIL ERROR] Failed to send welcome email to {recipient_email}: {e}")
@@ -355,14 +386,17 @@ Best regards,
         message.set_content(plain_text)
         message.add_alternative(html_content, subtype="html")
 
-        with smtplib.SMTP(host, port, timeout=15) as server:
-            server.starttls()
-            server.login(user, password)
-            server.send_message(message)
-
-        print(f"[EMAIL] Password reset email sent successfully to {recipient_email}")
-
-        return True
+        ok, reason = send_email_via_smtp(message, host, port, user, password)
+        if ok:
+            print(
+                f"[EMAIL] Password reset email sent successfully to {recipient_email} ({reason})"
+            )
+            return True
+        else:
+            print(
+                f"[EMAIL ERROR] Failed to send password reset email to {recipient_email}: {reason}"
+            )
+            return False
 
     except Exception as e:
         print(f"Password reset email error: {e}")
