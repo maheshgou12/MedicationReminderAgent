@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException, Depends, Body, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 import csv
 import io
@@ -353,14 +354,17 @@ def register(request: Request, user_data: UserCreate):
     db: Session = SessionLocal()
 
     try:
-        existing_user = db.query(User).filter(User.email == user_data.email).first()
+        email_clean = user_data.email.strip().lower()
+        existing_user = (
+            db.query(User).filter(func.lower(User.email) == email_clean).first()
+        )
 
         if existing_user:
             raise HTTPException(status_code=409, detail="Email already registered")
 
         user = User(
-            username=user_data.username,
-            email=user_data.email,
+            username=user_data.username.strip(),
+            email=email_clean,
             password=hash_password(user_data.password),
         )
 
@@ -394,10 +398,10 @@ def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
 
     try:
         # OAuth2 username field contains email
-        email = form_data.username
+        email = form_data.username.strip().lower()
         password = form_data.password
 
-        user = db.query(User).filter(User.email == email).first()
+        user = db.query(User).filter(func.lower(User.email) == email).first()
 
         if user is None:
             raise HTTPException(status_code=401, detail="Invalid email or password")
@@ -527,10 +531,14 @@ def password_reset_request(data: PasswordResetRequest):
     db: Session = SessionLocal()
 
     try:
-        user = db.query(User).filter(User.email == data.email).first()
+        email_clean = data.email.strip().lower()
+        user = db.query(User).filter(func.lower(User.email) == email_clean).first()
 
-        # Always return success to avoid email enumeration
+        # Always return success message to avoid email enumeration
         if user is None:
+            logger.info(
+                "Password reset requested for non-existent email: %s", email_clean
+            )
             return {
                 "message": "A reset link has been sent to your email if the account exists."
             }
@@ -547,7 +555,14 @@ def password_reset_request(data: PasswordResetRequest):
         )
         db.commit()
 
-        send_password_reset_email(user.email, raw)
+        # Dispatches directly to the user's specific registered email
+        sent = send_password_reset_email(user.email, raw)
+        logger.info(
+            "Password reset token generated for user %s (%s). Email sent: %s",
+            user.id,
+            user.email,
+            sent,
+        )
 
         return {
             "message": "A reset link has been sent to your email if the account exists."

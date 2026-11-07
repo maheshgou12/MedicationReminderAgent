@@ -113,8 +113,9 @@ def send_reminder_email(
 
     try:
         message = EmailMessage()
-        message["From"] = user
+        message["From"] = f"{APP_NAME} <{user}>"
         message["To"] = recipient_email
+        message["Reply-To"] = user
         message["Subject"] = f"💊 Medication Reminder - {medicine_name}"
 
         message.set_content(
@@ -255,8 +256,9 @@ def send_welcome_email(recipient_email: str, username: str) -> bool:
 
     try:
         message = EmailMessage()
-        message["From"] = user
+        message["From"] = f"{APP_NAME} <{user}>"
         message["To"] = recipient_email
+        message["Reply-To"] = user
         message["Subject"] = f"Welcome to {APP_NAME}!"
 
         plain_text = f"""Hello {username},
@@ -314,8 +316,9 @@ def send_password_reset_email(recipient_email: str, token: str) -> bool:
 
     try:
         message = EmailMessage()
-        message["From"] = user
+        message["From"] = f"{APP_NAME} <{user}>"
         message["To"] = recipient_email
+        message["Reply-To"] = user
         message["Subject"] = f"Reset Your Password - {APP_NAME}"
 
         plain_text = f"""Hello,
