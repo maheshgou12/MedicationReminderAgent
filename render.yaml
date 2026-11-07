@@ -21,6 +21,14 @@ services:
         value: "90"
       - key: FRONTEND_URL
         value: https://medication-reminder-agent-snw7.vercel.app
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USERNAME
+        value: maheshburra2712@gmail.com
+      - key: SMTP_PASSWORD
+        value: "kgsh sfcb irwd mxna"
       - key: PYTHON_VERSION
         value: 3.11.9
 

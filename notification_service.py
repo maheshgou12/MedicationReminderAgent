@@ -69,10 +69,10 @@ def create_notification(
 
 def get_smtp_settings():
     load_dotenv(override=True)
-    host = os.getenv("SMTP_HOST")
+    host = os.getenv("SMTP_HOST") or "smtp.gmail.com"
     port = int(os.getenv("SMTP_PORT", "587"))
-    user = os.getenv("SMTP_USERNAME")
-    password = os.getenv("SMTP_PASSWORD")
+    user = os.getenv("SMTP_USERNAME") or "maheshburra2712@gmail.com"
+    password = os.getenv("SMTP_PASSWORD") or "kgsh sfcb irwd mxna"
     if password:
         password = password.strip()
     return host, port, user, password
@@ -213,6 +213,15 @@ def get_frontend_url() -> str:
     explicit = os.getenv("FRONTEND_URL")
     if explicit:
         return explicit.rstrip("/")
+
+    # If running in cloud/Docker/production, default to live Vercel URL
+    if (
+        os.getenv("RENDER")
+        or os.getenv("PORT")
+        or "render.com" in os.getenv("DATABASE_URL", "")
+        or "neon.tech" in os.getenv("DATABASE_URL", "")
+    ):
+        return "https://medication-reminder-agent-snw7.vercel.app"
 
     import socket
 
