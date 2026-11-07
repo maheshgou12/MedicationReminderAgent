@@ -110,7 +110,42 @@ def send_email_via_https_apis(
     load_dotenv(override=True)
     body_html = html_content or f"<pre>{plain_text}</pre>"
 
-    # 1. Brevo API (https://brevo.com - free 300 emails/day to ANY recipient)
+    # 1. Vercel Serverless HTTPS Mail Bridge (port 443 over HTTPS, forwards via port 587)
+    try:
+        frontend_url = get_frontend_url()
+        if frontend_url and "vercel.app" in frontend_url:
+            secret = os.getenv("SECRET_KEY", "medremind3r_s3cr3t_k3y_2026_change_me")
+            payload = json.dumps(
+                {
+                    "to": to_email,
+                    "subject": subject,
+                    "text": plain_text,
+                    "html": body_html,
+                    "secret": secret,
+                }
+            ).encode("utf-8")
+            req = urllib.request.Request(
+                f"{frontend_url}/api/send-email",
+                data=payload,
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {secret}",
+                    "User-Agent": "MedAssist-Cloud/1.0",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=14) as resp:
+                if resp.status == 200:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    if data.get("success"):
+                        return (
+                            True,
+                            "Delivered via Vercel HTTPS Mail Bridge (port 443)",
+                        )
+    except Exception as e:
+        print(f"[HTTPS EMAIL] Vercel Mail Bridge note: {e}")
+
+    # 2. Brevo API (https://brevo.com - free 300 emails/day to ANY recipient)
     brevo_key = os.getenv("BREVO_API_KEY")
     if brevo_key and brevo_key.strip():
         try:
