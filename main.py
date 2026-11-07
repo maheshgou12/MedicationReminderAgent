@@ -594,7 +594,7 @@ def password_reset_request(data: PasswordResetRequest):
             PasswordResetToken(
                 user_id=user.id,
                 token_hash=digest,
-                expires_at=datetime.utcnow() + timedelta(minutes=30),
+                expires_at=datetime.utcnow() + timedelta(hours=24),
                 used=False,
             )
         )

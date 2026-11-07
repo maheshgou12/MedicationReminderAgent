@@ -414,6 +414,36 @@ def check_medication_reminders():
 
 
 # ============================================================
+# KEEP ALIVE PING (prevents cloud container idle spin-down)
+# ============================================================
+
+
+def keep_alive_ping():
+    """Pings the cloud health check endpoint every 10 minutes to maintain 24/7 uptime."""
+    import os
+    import urllib.request
+
+    url = os.getenv("KEEP_ALIVE_URL")
+    if not url and (
+        os.getenv("RENDER")
+        or "render.com" in os.getenv("DATABASE_URL", "")
+        or "onrender.com" in os.getenv("ALLOWED_ORIGINS", "")
+    ):
+        url = "https://medication-reminder-backend-5yk5.onrender.com/health"
+
+    if url:
+        try:
+            req = urllib.request.Request(
+                url, headers={"User-Agent": "MedAssist-KeepAlive/1.0"}
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                if resp.status == 200:
+                    print(f"[KEEP-ALIVE] Heartbeat success -> {url}")
+        except Exception as e:
+            print(f"[KEEP-ALIVE] Heartbeat error: {e}")
+
+
+# ============================================================
 # START SCHEDULER
 # ============================================================
 
@@ -428,9 +458,17 @@ def start_scheduler():
             replace_existing=True,
         )
 
+        scheduler.add_job(
+            keep_alive_ping,
+            "interval",
+            minutes=10,
+            id="keep_alive_ping_job",
+            replace_existing=True,
+        )
+
         scheduler.start()
 
-        print("Medication reminder scheduler started.")
+        print("Medication reminder scheduler and keep-alive started.")
 
 
 # ============================================================

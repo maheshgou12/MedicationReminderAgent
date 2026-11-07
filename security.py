@@ -24,11 +24,11 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 
 ACCESS_TOKEN_EXPIRE_MINUTES = int(
-    os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "10080")
-)  # 7 days default
+    os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "525600")
+)  # 1 year default for uninterrupted access
 REFRESH_TOKEN_EXPIRE_DAYS = int(
-    os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "90")
-)  # 90 days default
+    os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "3650")
+)  # 10 years default for persistent sessions
 
 
 if not SECRET_KEY:
