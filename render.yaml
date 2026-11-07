@@ -31,6 +31,14 @@ services:
         value: "kgsh sfcb irwd mxna"
       - key: PYTHON_VERSION
         value: 3.11.9
+      - key: BREVO_API_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: SENDGRID_API_KEY
+        sync: false
+      - key: EMAIL_WEBHOOK_URL
+        sync: false
 
 databases:
   - name: medication-db

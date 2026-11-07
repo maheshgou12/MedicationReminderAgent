@@ -7,14 +7,17 @@ export function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [resetUrl, setResetUrl] = useState("");
+  const [emailSent, setEmailSent] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setSent(false);
+    setResetUrl("");
 
     try {
-      await fetch(
+      const res = await fetch(
         `${API_URL}/password-reset/request`,
         {
           method: "POST",
@@ -25,6 +28,13 @@ export function ForgotPassword() {
         }
       );
 
+      const data = await res.json().catch(() => ({}));
+      if (data.reset_url) {
+        setResetUrl(data.reset_url);
+      }
+      setEmailSent(Boolean(data.email_sent));
+      setSent(true);
+    } catch {
       setSent(true);
     } finally {
       setLoading(false);
@@ -63,18 +73,78 @@ export function ForgotPassword() {
           {sent && (
             <div
               style={{
-                marginTop: "16px",
-                padding: "12px",
-                background: "#ecfdf5",
-                color: "#065f46",
-                border: "1px solid #a7f3d0",
-                borderRadius: "8px",
-                fontSize: "0.95rem",
-                textAlign: "center",
-                fontWeight: 600,
+                marginTop: "20px",
+                padding: "16px",
+                background: "#f0fdf4",
+                border: "1px solid #86efac",
+                borderRadius: "10px",
+                textAlign: "left",
               }}
             >
-              ✅ Reset link sent! Please check your email inbox.
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  color: "#166534",
+                  fontWeight: 700,
+                  fontSize: "1rem",
+                  marginBottom: "6px",
+                }}
+              >
+                <span>✅</span>
+                <span>Reset Request Generated</span>
+              </div>
+
+              <p
+                style={{
+                  margin: "0 0 12px 0",
+                  color: "#1e293b",
+                  fontSize: "0.92rem",
+                  lineHeight: 1.45,
+                }}
+              >
+                A password reset request has been processed for{" "}
+                <strong>{email}</strong>.
+              </p>
+
+              {resetUrl && (
+                <div style={{ marginTop: "12px", marginBottom: "12px" }}>
+                  <a
+                    href={resetUrl}
+                    style={{
+                      display: "block",
+                      textAlign: "center",
+                      padding: "12px 18px",
+                      background:
+                        "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
+                      color: "#ffffff",
+                      borderRadius: "8px",
+                      fontWeight: 600,
+                      fontSize: "0.95rem",
+                      textDecoration: "none",
+                      boxShadow: "0 4px 6px -1px rgba(79, 70, 229, 0.25)",
+                    }}
+                  >
+                    👉 Click Here to Set Your New Password Now
+                  </a>
+                </div>
+              )}
+
+              <p
+                style={{
+                  margin: "8px 0 0 0",
+                  color: "#64748b",
+                  fontSize: "0.82rem",
+                  lineHeight: 1.4,
+                  borderTop: "1px dashed #cbd5e1",
+                  paddingTop: "8px",
+                }}
+              >
+                {emailSent
+                  ? "An email was also dispatched to your inbox. You can also use the direct button above."
+                  : "If your email provider delays delivery or filters to spam, click the instant button above to set your password immediately."}
+              </p>
             </div>
           )}
         </form>

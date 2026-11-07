@@ -235,46 +235,42 @@ def health():
 
 @app.get("/debug/smtp-check", tags=["System"])
 def debug_smtp_check(to: str = Query(default="maheshburra2712@gmail.com")):
-    from email.message import EmailMessage
+    import os
     from notification_service import (
         get_smtp_settings,
         is_smtp_configured,
         is_deliverable_email,
-        send_email_via_smtp,
+        dispatch_email,
     )
 
     host, port, user, password = get_smtp_settings()
     configured = is_smtp_configured()
     deliverable = is_deliverable_email(to)
 
-    result = {
-        "host": host,
-        "port": port,
-        "user": user,
-        "password_configured": bool(password),
-        "is_smtp_configured": configured,
-        "is_deliverable": deliverable,
-        "to": to,
-    }
-
-    if not configured:
-        result["error"] = "SMTP not configured"
-        return result
-
-    msg = EmailMessage()
-    msg["From"] = f"MedAssist <{user}>"
-    msg["To"] = to
-    msg["Reply-To"] = user
-    msg["Subject"] = "Diagnostic SMTP Check - MedAssist Cloud"
-    msg.set_content(
-        "Diagnostic email from MedAssist cloud server to verify SMTP delivery."
+    ok, reason = dispatch_email(
+        to,
+        "Diagnostic Email Check - MedAssist Cloud",
+        "Diagnostic email from MedAssist cloud server to verify delivery across HTTPS APIs and SMTP.",
     )
 
-    ok, reason = send_email_via_smtp(msg, host, port, user, password)
-    result["sent"] = ok
-    result["reason"] = reason
-
-    return result
+    return {
+        "to": to,
+        "is_deliverable": deliverable,
+        "https_providers": {
+            "brevo_configured": bool(os.getenv("BREVO_API_KEY")),
+            "resend_configured": bool(os.getenv("RESEND_API_KEY")),
+            "sendgrid_configured": bool(os.getenv("SENDGRID_API_KEY")),
+            "webhook_configured": bool(os.getenv("EMAIL_WEBHOOK_URL")),
+        },
+        "smtp": {
+            "host": host,
+            "port": port,
+            "user": user,
+            "is_smtp_configured": configured,
+        },
+        "sent": ok,
+        "reason": reason,
+    }
 
 
 # ============================================================
@@ -570,7 +566,10 @@ def logout(
 
 @app.post("/password-reset/request", tags=["Authentication"])
 def password_reset_request(data: PasswordResetRequest):
-    from notification_service import send_password_reset_email
+    from notification_service import (
+        send_password_reset_email_detailed,
+        get_frontend_url,
+    )
 
     db: Session = SessionLocal()
 
@@ -578,13 +577,15 @@ def password_reset_request(data: PasswordResetRequest):
         email_clean = data.email.strip().lower()
         user = db.query(User).filter(func.lower(User.email) == email_clean).first()
 
-        # Always return success message to avoid email enumeration
+        # Always return structured message to avoid email enumeration while enabling instant UI action
         if user is None:
             logger.info(
                 "Password reset requested for non-existent email: %s", email_clean
             )
             return {
-                "message": "A reset link has been sent to your email if the account exists."
+                "message": "A reset link has been sent to your email if the account exists.",
+                "reset_url": None,
+                "email_sent": False,
             }
 
         raw, digest = generate_refresh_token()
@@ -599,17 +600,24 @@ def password_reset_request(data: PasswordResetRequest):
         )
         db.commit()
 
-        # Dispatches directly to the user's specific registered email
-        sent = send_password_reset_email(user.email, raw)
+        frontend_url = get_frontend_url()
+        reset_link = f"{frontend_url}/reset-password?token={raw}"
+
+        # Dispatches directly to the user's registered email via HTTPS API / SMTP
+        sent, reason = send_password_reset_email_detailed(user.email, raw)
         logger.info(
-            "Password reset token generated for user %s (%s). Email sent: %s",
+            "Password reset token generated for user %s (%s). Email sent: %s (%s)",
             user.id,
             user.email,
             sent,
+            reason,
         )
 
         return {
-            "message": "A reset link has been sent to your email if the account exists."
+            "message": "A reset link has been sent to your email if the account exists.",
+            "reset_url": reset_link,
+            "email_sent": sent,
+            "email": user.email,
         }
 
     finally:

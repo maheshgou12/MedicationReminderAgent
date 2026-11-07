@@ -98,6 +98,192 @@ def is_smtp_configured() -> bool:
     return True
 
 
+def send_email_via_https_apis(
+    to_email: str, subject: str, plain_text: str, html_content: str | None = None
+) -> tuple[bool, str]:
+    """Sends email via modern HTTPS REST APIs over port 443.
+
+    This bypasses cloud hosting firewall restrictions (like Render free-tier
+    blocking outbound raw TCP mail ports 25, 465, and 587).
+    Supported providers: Brevo (Sendinblue), Resend, SendGrid, and Generic HTTPS Webhook.
+    """
+    load_dotenv(override=True)
+    body_html = html_content or f"<pre>{plain_text}</pre>"
+
+    # 1. Brevo API (https://brevo.com - free 300 emails/day to ANY recipient)
+    brevo_key = os.getenv("BREVO_API_KEY")
+    if brevo_key and brevo_key.strip():
+        try:
+            _, _, default_user, _ = get_smtp_settings()
+            sender_email = (
+                os.getenv("BREVO_SENDER_EMAIL")
+                or default_user
+                or "maheshburra2712@gmail.com"
+            )
+            payload = json.dumps(
+                {
+                    "sender": {"name": APP_NAME, "email": sender_email},
+                    "to": [{"email": to_email}],
+                    "subject": subject,
+                    "textContent": plain_text,
+                    "htmlContent": body_html,
+                }
+            ).encode("utf-8")
+            req = urllib.request.Request(
+                "https://api.brevo.com/v3/smtp/email",
+                data=payload,
+                headers={
+                    "api-key": brevo_key.strip(),
+                    "Content-Type": "application/json",
+                    "User-Agent": "MedAssist/1.0",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                if resp.status in (200, 201, 202):
+                    return True, "Delivered via Brevo HTTPS API (port 443)"
+        except Exception as e:
+            print(f"[HTTPS EMAIL] Brevo error: {e}")
+
+    # 2. Resend API (https://resend.com - modern developer email API)
+    resend_key = os.getenv("RESEND_API_KEY")
+    if resend_key and resend_key.strip():
+        try:
+            sender = os.getenv("RESEND_FROM", f"{APP_NAME} <onboarding@resend.dev>")
+            payload = json.dumps(
+                {
+                    "from": sender,
+                    "to": [to_email],
+                    "subject": subject,
+                    "text": plain_text,
+                    "html": body_html,
+                }
+            ).encode("utf-8")
+            req = urllib.request.Request(
+                "https://api.resend.com/emails",
+                data=payload,
+                headers={
+                    "Authorization": f"Bearer {resend_key.strip()}",
+                    "Content-Type": "application/json",
+                    "User-Agent": "MedAssist/1.0",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                if resp.status in (200, 201):
+                    return True, "Delivered via Resend HTTPS API (port 443)"
+        except Exception as e:
+            print(f"[HTTPS EMAIL] Resend error: {e}")
+
+    # 3. SendGrid API (https://sendgrid.com)
+    sendgrid_key = os.getenv("SENDGRID_API_KEY")
+    if sendgrid_key and sendgrid_key.strip():
+        try:
+            _, _, default_user, _ = get_smtp_settings()
+            sender_email = (
+                os.getenv("SENDGRID_FROM")
+                or default_user
+                or "maheshburra2712@gmail.com"
+            )
+            payload = json.dumps(
+                {
+                    "personalizations": [{"to": [{"email": to_email}]}],
+                    "from": {"email": sender_email, "name": APP_NAME},
+                    "subject": subject,
+                    "content": [
+                        {"type": "text/plain", "value": plain_text},
+                        {"type": "text/html", "value": body_html},
+                    ],
+                }
+            ).encode("utf-8")
+            req = urllib.request.Request(
+                "https://api.sendgrid.com/v3/mail/send",
+                data=payload,
+                headers={
+                    "Authorization": f"Bearer {sendgrid_key.strip()}",
+                    "Content-Type": "application/json",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                if resp.status in (200, 202):
+                    return True, "Delivered via SendGrid HTTPS API (port 443)"
+        except Exception as e:
+            print(f"[HTTPS EMAIL] SendGrid error: {e}")
+
+    # 4. Generic Custom Email Webhook (e.g. Zapier, Make, n8n, Cloudflare Worker)
+    email_webhook = os.getenv("EMAIL_WEBHOOK_URL")
+    if email_webhook and email_webhook.strip():
+        try:
+            payload = json.dumps(
+                {
+                    "to": to_email,
+                    "subject": subject,
+                    "text": plain_text,
+                    "html": body_html,
+                }
+            ).encode("utf-8")
+            req = urllib.request.Request(
+                email_webhook.strip(),
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                if resp.status in (200, 201, 202, 204):
+                    return True, "Delivered via HTTPS Email Webhook (port 443)"
+        except Exception as e:
+            print(f"[HTTPS EMAIL] Webhook error: {e}")
+
+    return False, "No active HTTPS email provider responded"
+
+
+def dispatch_email(
+    recipient_email: str,
+    subject: str,
+    plain_text: str,
+    html_content: str | None = None,
+) -> tuple[bool, str]:
+    """Universal email dispatcher.
+
+    Tries modern HTTPS REST mailers over port 443 first (bypassing cloud hosting firewall blocks),
+    and falls back to dual-port SMTP (587 STARTTLS / 465 SSL) for local/VM environments.
+    """
+    if not recipient_email or not is_deliverable_email(recipient_email):
+        return False, f"Invalid or undeliverable email address: {recipient_email}"
+
+    # Step 1: Attempt HTTPS delivery (works everywhere, including Render free tier)
+    https_ok, https_reason = send_email_via_https_apis(
+        recipient_email, subject, plain_text, html_content
+    )
+    if https_ok:
+        return True, https_reason
+
+    # Step 2: Fallback to direct SMTP (works locally, VPS, or Render paid tier)
+    if is_smtp_configured():
+        host, port, user, password = get_smtp_settings()
+        try:
+            message = EmailMessage()
+            message["From"] = f"{APP_NAME} <{user}>"
+            message["To"] = recipient_email
+            message["Reply-To"] = user
+            message["Subject"] = subject
+            message.set_content(plain_text)
+            if html_content:
+                message.add_alternative(html_content, subtype="html")
+
+            smtp_ok, smtp_reason = send_email_via_smtp(
+                message, host, port, user, password
+            )
+            if smtp_ok:
+                return True, smtp_reason
+            return False, f"{https_reason} | SMTP fallback: {smtp_reason}"
+        except Exception as e:
+            return False, f"{https_reason} | SMTP exception: {e}"
+
+    return False, f"{https_reason} | SMTP not configured"
+
+
 def send_email_via_smtp(
     message: EmailMessage, host: str, port: int, user: str, password: str
 ) -> tuple[bool, str]:
@@ -133,22 +319,11 @@ def send_reminder_email(
     reminder_time: str,
     frequency: str,
 ):
-    # Skip gracefully when email is not configured (local dev)
-    if not is_smtp_configured() or not is_deliverable_email(recipient_email):
+    if not is_deliverable_email(recipient_email):
         return False
 
-    host, port, user, password = get_smtp_settings()
-
-    try:
-        message = EmailMessage()
-        message["From"] = f"{APP_NAME} <{user}>"
-        message["To"] = recipient_email
-        message["Reply-To"] = user
-        message["Subject"] = f"💊 Medication Reminder - {medicine_name}"
-
-        message.set_content(
-            f"""
-Medication Reminder
+    subject = f"💊 Medication Reminder - {medicine_name}"
+    plain_text = f"""Medication Reminder
 
 Medicine: {medicine_name}
 Dosage: {dosage}
@@ -159,22 +334,36 @@ Please take your medication on time.
 
 {APP_NAME}
 """
+    html_content = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px;">
+  <div style="max-width: 480px; margin: 0 auto; background: #ffffff; border-radius: 12px; padding: 32px; border: 1px solid #e2e8f0; text-align: center;">
+    <div style="font-size: 36px; margin-bottom: 12px;">💊</div>
+    <h2 style="color: #1e293b; margin: 0 0 16px 0;">Medication Reminder</h2>
+    <p style="color: #475569; font-size: 15px; margin: 0 0 16px 0;">
+      It is time to take your medication:
+    </p>
+    <div style="background: #f1f5f9; padding: 16px; border-radius: 8px; text-align: left; margin-bottom: 20px;">
+      <p style="margin: 4px 0;"><strong>Medicine:</strong> {medicine_name}</p>
+      <p style="margin: 4px 0;"><strong>Dosage:</strong> {dosage}</p>
+      <p style="margin: 4px 0;"><strong>Time:</strong> {reminder_time}</p>
+      <p style="margin: 4px 0;"><strong>Frequency:</strong> {frequency}</p>
+    </div>
+    <p style="color: #64748b; font-size: 13px;">Please take your medication on time.</p>
+  </div>
+</body>
+</html>
+"""
+    ok, reason = dispatch_email(recipient_email, subject, plain_text, html_content)
+    if ok:
+        print(f"[EMAIL] Reminder email sent to {recipient_email} ({reason})")
+        send_webhook_message(
+            f"Medication Reminder - {medicine_name} ({dosage}) at {reminder_time}"
         )
-
-        ok, reason = send_email_via_smtp(message, host, port, user, password)
-
-        if ok:
-            print(f"[EMAIL] Reminder email sent to {recipient_email} ({reason})")
-            send_webhook_message(
-                f"Medication Reminder - {medicine_name} ({dosage}) at {reminder_time}"
-            )
-            return True
-        else:
-            print(f"Email notification error: {reason}")
-            return False
-
-    except Exception as e:
-        print(f"Email notification error: {e}")
+        return True
+    else:
+        print(f"Email notification error: {reason}")
         return False
 
 
@@ -275,20 +464,12 @@ def get_frontend_url() -> str:
 
 def send_welcome_email(recipient_email: str, username: str) -> bool:
     """Send welcome email when any new user registers an account."""
-    if not is_smtp_configured() or not is_deliverable_email(recipient_email):
+    if not is_deliverable_email(recipient_email):
         return False
 
-    host, port, user, password = get_smtp_settings()
     frontend_url = get_frontend_url()
-
-    try:
-        message = EmailMessage()
-        message["From"] = f"{APP_NAME} <{user}>"
-        message["To"] = recipient_email
-        message["Reply-To"] = user
-        message["Subject"] = f"Welcome to {APP_NAME}!"
-
-        plain_text = f"""Hello {username},
+    subject = f"Welcome to {APP_NAME}!"
+    plain_text = f"""Hello {username},
 
 Welcome to {APP_NAME}!
 
@@ -298,7 +479,7 @@ Your account has been registered successfully:
 Best regards,
 {APP_NAME}
 """
-        html_content = f"""<!DOCTYPE html>
+    html_content = f"""<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"></head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px;">
@@ -315,53 +496,44 @@ Best regards,
 </body>
 </html>
 """
-        message.set_content(plain_text)
-        message.add_alternative(html_content, subtype="html")
-
-        ok, reason = send_email_via_smtp(message, host, port, user, password)
-        if ok:
-            print(
-                f"[EMAIL] Welcome email sent successfully to {recipient_email} ({reason})"
-            )
-            return True
-        else:
-            print(
-                f"[EMAIL ERROR] Failed to send welcome email to {recipient_email}: {reason}"
-            )
-            return False
-
-    except Exception as e:
-        print(f"[EMAIL ERROR] Failed to send welcome email to {recipient_email}: {e}")
+    ok, reason = dispatch_email(recipient_email, subject, plain_text, html_content)
+    if ok:
+        print(
+            f"[EMAIL] Welcome email sent successfully to {recipient_email} ({reason})"
+        )
+        return True
+    else:
+        print(
+            f"[EMAIL ERROR] Failed to send welcome email to {recipient_email}: {reason}"
+        )
         return False
 
 
-def send_password_reset_email(recipient_email: str, token: str) -> bool:
+def send_password_reset_email_detailed(
+    recipient_email: str, token: str
+) -> tuple[bool, str]:
     """Send a 1-click password reset link directly to the user's email inbox."""
+    if not is_deliverable_email(recipient_email):
+        return False, f"Invalid email format: {recipient_email}"
 
-    if not is_smtp_configured() or not is_deliverable_email(recipient_email):
-        return False
-
-    host, port, user, password = get_smtp_settings()
     frontend_url = get_frontend_url()
     reset_link = f"{frontend_url}/reset-password?token={token}"
 
-    try:
-        message = EmailMessage()
-        message["From"] = f"{APP_NAME} <{user}>"
-        message["To"] = recipient_email
-        message["Reply-To"] = user
-        message["Subject"] = f"Reset Your Password - {APP_NAME}"
+    subject = f"Reset Your Password - {APP_NAME}"
+    plain_text = f"""Hello,
 
-        plain_text = f"""Hello,
+You recently requested to reset the password for your {APP_NAME} account ({recipient_email}).
 
 Click the link below to set a new password:
 {reset_link}
 
+This link is valid for 30 minutes. If you did not request a password reset, you can safely ignore this email.
+
 Best regards,
-{APP_NAME}
+{APP_NAME} Support
 """
 
-        html_content = f"""<!DOCTYPE html>
+    html_content = f"""<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"></head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px;">
@@ -379,25 +551,17 @@ Best regards,
     <p style="color: #64748b; font-size: 13px; margin: 24px 0 0 0; border-top: 1px solid #f1f5f9; padding-top: 16px;">
       Or open this link: <a href="{reset_link}" style="color: #4f46e5; word-break: break-all;">{reset_link}</a>
     </p>
+    <p style="color: #94a3b8; font-size: 12px; margin-top: 16px;">
+      This link expires in 30 minutes. If you did not request this, please ignore this email.
+    </p>
   </div>
 </body>
 </html>
 """
-        message.set_content(plain_text)
-        message.add_alternative(html_content, subtype="html")
+    return dispatch_email(recipient_email, subject, plain_text, html_content)
 
-        ok, reason = send_email_via_smtp(message, host, port, user, password)
-        if ok:
-            print(
-                f"[EMAIL] Password reset email sent successfully to {recipient_email} ({reason})"
-            )
-            return True
-        else:
-            print(
-                f"[EMAIL ERROR] Failed to send password reset email to {recipient_email}: {reason}"
-            )
-            return False
 
-    except Exception as e:
-        print(f"Password reset email error: {e}")
-        return False
+def send_password_reset_email(recipient_email: str, token: str) -> bool:
+    """Send a 1-click password reset link directly to the user's email inbox."""
+    ok, _ = send_password_reset_email_detailed(recipient_email, token)
+    return ok
