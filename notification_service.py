@@ -119,8 +119,7 @@ def send_email_via_https_apis(
         )
         secret = (
             os.getenv("MAIL_BRIDGE_SECRET")
-            or os.getenv("SECRET_KEY")
-            or "medremind3r_s3cr3t_k3y_2026_change_me"
+            or "medassist_mail_bridge_secret_key_2026_fixed"
         )
         _, _, smtp_user, smtp_pass = get_smtp_settings()
         payload = json.dumps(
