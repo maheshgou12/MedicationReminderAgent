@@ -81,8 +81,19 @@ def get_smtp_settings():
 def is_deliverable_email(email: str) -> bool:
     if not email or "@" not in email:
         return False
-    domain = email.split("@")[-1].strip().lower()
+    parts = email.split("@")
+    if len(parts) != 2:
+        return False
+    local_part = parts[0].strip().lower()
+    domain = parts[1].strip().lower()
     if domain in ("example.com", "test.com", "sample.com", "localhost", "invalid"):
+        return False
+    if (
+        local_part.startswith("patient_test_")
+        or local_part.startswith("test_")
+        or local_part.startswith("user_test_")
+        or local_part in ("ghost", "fake", "dummy")
+    ):
         return False
     return True
 
