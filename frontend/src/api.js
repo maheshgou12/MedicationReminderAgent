@@ -45,14 +45,17 @@ export const getUserIdFromToken = (
   token
 ) => {
   try {
+    if (!token) return null;
     const parts = token.split(".");
 
     if (parts.length !== 3) {
       return null;
     }
 
+    const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const pad = b64.length % 4 ? "=".repeat(4 - (b64.length % 4)) : "";
     const payload = JSON.parse(
-      atob(parts[1])
+      atob(b64 + pad)
     );
 
     return Number(payload.sub);
@@ -65,48 +68,61 @@ export const getUserIdFromToken = (
   }
 };
 
+let refreshPromise = null;
+
 const tryRefresh = async () => {
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
   const refreshToken = getRefreshToken();
 
   if (!refreshToken) {
     return null;
   }
 
-  try {
-    const response = await fetch(
-      `${API_URL}/refresh`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type":
-            "application/json",
-        },
-        body: JSON.stringify({
-          refresh_token: refreshToken,
-        }),
+  refreshPromise = (async () => {
+    try {
+      const response = await fetch(
+        `${API_URL}/refresh`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            refresh_token: refreshToken,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        clearTokens();
+        return null;
       }
-    );
 
-    if (!response.ok) {
+      const data =
+        await response.json();
+
+      setTokens(
+        data.access_token,
+        data.refresh_token
+      );
+
+      return data.access_token;
+    } catch (error) {
+      console.error(
+        "Token refresh error:",
+        error
+      );
       return null;
+    } finally {
+      refreshPromise = null;
     }
+  })();
 
-    const data =
-      await response.json();
-
-    setTokens(
-      data.access_token,
-      data.refresh_token
-    );
-
-    return data.access_token;
-  } catch (error) {
-    console.error(
-      "Token refresh error:",
-      error
-    );
-    return null;
-  }
+  return refreshPromise;
 };
 
 /* Same signature as fetch(). On 401 it tries one silent
@@ -139,7 +155,11 @@ export const authFetch = async (
     const newToken = await tryRefresh();
 
     if (newToken) {
-      return authFetch(url, options, false);
+      const retryHeaders = {
+        ...(options.headers || {}),
+        Authorization: `Bearer ${newToken}`,
+      };
+      return authFetch(url, { ...options, headers: retryHeaders }, false);
     }
   }
 

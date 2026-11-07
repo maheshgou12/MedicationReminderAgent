@@ -205,12 +205,12 @@ app.add_middleware(
 # ============================================================
 
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 def home():
     return {"message": "Medication Reminder Agent Running", "status": "active"}
 
 
-@app.get("/health", tags=["System"])
+@app.api_route("/health", methods=["GET", "HEAD"], tags=["System"])
 def health():
     from database import engine
     from sqlalchemy import text
