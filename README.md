@@ -100,6 +100,8 @@ MedicationReminderAgent/
 ├── tests/
 │   └── test_api.py           # Automated test suite (23 pytest test cases)
 └── frontend/                 # Modern React 18 SPA
+    ├── api/
+    │   └── send-email.js     # Vercel Serverless Mail Bridge (HTTPS port 443 -> Gmail SMTP 587)
     ├── src/
     │   ├── api.js            # Axios/Fetch API client with silent token renewal
     │   ├── App.jsx           # Master route router, global context & layout
@@ -112,8 +114,8 @@ MedicationReminderAgent/
     │       ├── AIInsights.jsx    # LLM chat assistant & interaction checker
     │       ├── Notifications.jsx # Activity center with mark-all-read & filters
     │       ├── Profile.jsx       # Account settings & password update
-    │       └── PasswordReset.jsx # 1-Click email password reset flow
-    ├── vercel.json           # SPA rewrite configuration for client-side routing
+    │       └── PasswordReset.jsx # Dual-channel password recovery (email + instant on-screen link)
+    ├── vercel.json           # Vercel routing & serverless API configuration
     ├── package.json          # Frontend dependencies & scripts
     └── vite.config.js        # Vite bundler configuration
 ```
