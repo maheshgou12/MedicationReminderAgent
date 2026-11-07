@@ -48,6 +48,7 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+scratch/
 
 # GitHub workflows (untracked to prevent PAT scope errors)
 .github/
